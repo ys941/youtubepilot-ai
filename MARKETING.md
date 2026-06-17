@@ -37,6 +37,7 @@ Growing a YouTube Shorts channel is a daily grind: come up with an idea, write a
 - **🎨 Truly white-label, zero code.** App name, niche, persona, channel handle, content-type labels — all set from the **Settings UI**. Re-skin the entire product for cooking, fitness, finance, history, anything, in minutes.
 - **🧠 Two AI brains, never stalls.** Grok *and* Gemini with automatic fallback chains, so a single provider outage never stops your content.
 - **🎬 Real videos, not slideshows.** Every Short is a themed multi-slide carousel — hook cover → punchy content slides → subscribe outro — stitched with **ffmpeg** and scored with mood-matched royalty-free music.
+- **🎙️ AI voiceover + auto-translated captions = a global audience.** Opt in and every Short is narrated by a natural AI voice (six to choose from) over auto-ducked music — and with captions left to YouTube, your Shorts get **auto-translated into every viewer's language** for free. Want them baked in? Flip on TikTok-style word-by-word burned captions.
 - **🤖 It engages, not just posts.** Auto-replies to viewer comments in your voice, and is smart enough to never reply to itself.
 - **🏢 Run a whole network.** Manage many channels from one dashboard, each with its own brand, schedule, and topics — all running independently.
 - **🔑 Your keys, your data, your channel.** Bring your own API keys. Self-host on Railway or Docker. Nothing is locked in.

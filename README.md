@@ -141,6 +141,12 @@ Content slots have **stable internal IDs** (kept for data/schema compatibility �
 - **AI-written full caption (resilient fallback chain)** — `buildRichCaption()` writes one rich caption via a tiered chain — **Gemini flash → Grok → Gemini reasoning** (`generateTextResilient`, with a completeness validator) — so it never silently degrades to a thin/truncated result. Generated once and cached per `post.id`.
 - **Engagement seed comment on every upload** — after upload, the channel auto-posts a friendly engagement-question comment (`buildSeedComment()`) to kick-start comment velocity (a strong Shorts reach signal).
 - **Mood-matched music** — Gemini **vision** reads the cover card → picks a mood → **Jamendo** returns a CC-licensed instrumental, mixed under the video (faded) and credited in the description. Best-effort: any failure or missing `JAMENDO_CLIENT_ID` → silent Short.
+- **🎙️ AI voiceover + word-by-word captions (opt-in, default OFF)** — turn each Short into a narrated video:
+  - **Voiceover** (`voiceover`, default OFF) — an AI voice narrates the Short, mixed at full volume over the **auto-ducked** background music; the cards are re-timed so the slides span the full narration. Best-effort by design: any TTS failure falls back to the original silent, music-only Short.
+  - **Selectable voice** (`voiceoverVoice`) — pick an **Orpheus** voice: male `daniel` (default), `austin`, `troy`; female `autumn`, `diana`, `hannah`.
+  - **Burned captions** (`burnCaptions`, default OFF) — **OFF** → no hardcoded captions, so YouTube **auto-generates and auto-translates** captions into each viewer's language (the upload declares `defaultLanguage`/`defaultAudioLanguage = "en"`), reaching a global audience for free. **ON** → burns **TikTok-style word-by-word captions** into the video (bundled Geist font `public/fonts/CFSans.ttf` via libass; the active word pops gold and scales, in a lower-middle safe zone), timed from **Groq Whisper** word-level timestamps (`whisper-large-v3`) → ASS subtitles → a re-encode pass.
+  - **TTS providers** (`lib/tts.ts`, `TTS_PROVIDER` default `groq`, auto-falling-back to the other then Gemini): **Groq Orpheus** (`canopylabs/orpheus-v1-english`; needs a one-time org-admin terms acceptance in the Groq console; tune via `GROQ_TTS_MODEL`/`GROQ_TTS_VOICE`), **Canopy self-hosted** (`CANOPY_TTS_URL`/`CANOPY_TTS_KEY`/`CANOPY_TTS_VOICE`, set `TTS_PROVIDER=canopy`), and **Gemini TTS** (last-resort).
+  - **Performance note:** voiceover adds a TTS call per Short (plus a Whisper call and one extra re-encode **only when `burnCaptions` is ON**) — heavier on memory, which is why it ships opt-in and OFF by default.
 - **AI YouTube search tags** — `buildYouTubeTagsAI()` generates search-optimized keyword tags (deterministic `buildYouTubeTags()` fallback); `uploadShort()` adds `#` prefixes, appends `#Shorts`, and uploads via Data API v3.
 - **YouTube comment auto-replies** — `replyToYouTubeComments()` reads recent-video comment threads (and nested replies) and replies with **Grok**, deduped via the `Comment` table and an atomic claim. **Robust own-comment skipping**: it compares the channel id, channel title, and `@handle` so it never replies to itself (including the seed comment). Toggle in **Settings → YouTube**.
 
@@ -244,9 +250,12 @@ Both `Post` and `ScheduledPost` carry a `platform` column (default `"youtube"`).
 
 ### Idempotency & self-healing
 - **`youtubeVideoId`** is stored on both `ScheduledPost` and `Post`; every YouTube path re-reads the freshest value before uploading, so retries never double-post.
-- **Claim lock** — `publishOverdueScheduled` and the manual route atomically flip a `PENDING` `ScheduledPost` to `FAILED("__CLAIMING__")`; only the caller that gets `count===1` proceeds. A **reaper** resets `__CLAIMING__` rows older than ~10 min back to `PENDING`.
-- **ffmpeg safety** — a 120s watchdog SIGKILLs wedged renders; a single-flight serial queue ensures only one ffmpeg pipeline runs at a time (OOM guard).
-- **AI fallback chains** everywhere; graceful degradation (silent Shorts, default mood, branded fallback replies).
+- **Claim lock** — `publishOverdueScheduled` and the manual route atomically flip a `PENDING` `ScheduledPost` to `FAILED("__CLAIMING__")`; only the caller that gets `count===1` proceeds. A **reaper** resets `__CLAIMING__` rows back to `PENDING`. The claim string **embeds a timestamp**, and the reaper resets stale claims by that **embedded claim time** (>~10 min), not the row's `createdAt` — so legitimately recent claims are never reaped out from under an in-flight upload, which stops duplicate uploads.
+- **Render lock (OOM guard)** — a process-wide **single-flight queue wraps the ENTIRE memory-heavy Short build** (card render + music + ffmpeg), so only one render is ever in memory at a time, even across concurrent brands/cycles.
+- **ffmpeg safety** — a 120s watchdog SIGKILLs wedged renders; the render lock above ensures only one pipeline runs at a time.
+- **JSON-resilient AI** — content-JSON generation tries the selected provider then **falls through to the other on empty output or quota exhaustion** (429 / `limit:0`), so Shorts never silently degrade to canned filler when a provider's free quota runs out.
+- **Passed slots publish today** — when the auto-generator runs and a Short's slot time has **already passed for today**, it's scheduled for **now (today)** rather than pushed to tomorrow — fixing over-generation and the "N Shorts at one time" same-time collision.
+- **AI fallback chains** everywhere; graceful degradation (silent Shorts, default mood, branded fallback replies, and the silent music-only fallback when voiceover TTS fails).
 
 ---
 
@@ -286,6 +295,9 @@ Rename the **user-facing label** of each content slot (the internal ID is preser
 | `dailySchedule[]` | **Per-day overrides** — per weekday → ON/OFF · how many posts · at what times. Overrides the global `postsPerDay`/`postTimes`; days on "Use global" fall back to them. |
 | `customScheduleOnly` | When **ON**, only weekdays with a Custom entry post — others generate **nothing**. Default **OFF**. |
 | `secondsPerImage` | Seconds each content slide shows (2–15, default 5; hook ≈2s, outro ≈3s) |
+| `voiceover` | **Opt-in (default OFF).** Narrate each Short with an AI voice, mixed over auto-ducked music; cards re-time to span the narration. Any TTS failure falls back to the silent music-only Short. |
+| `voiceoverVoice` | Orpheus voice for the narration — male `daniel` (default), `austin`, `troy`; female `autumn`, `diana`, `hannah` |
+| `burnCaptions` | **Opt-in (default OFF).** **OFF** → no hardcoded captions, so YouTube auto-generates + auto-translates captions per viewer. **ON** → burns TikTok-style word-by-word captions (Groq Whisper timestamps → ASS → re-encode). |
 | `descriptionSuffix` | Appended to every YouTube description (e.g. channel CTA) |
 | `replyToComments` | Grok auto-replies to comments on the channel's videos, skipping its own (default on) |
 | `topics[]` | Topics the YouTube poster writes about |
@@ -349,6 +361,12 @@ npm run youtube:auth  # one-command YouTube OAuth → prints YOUTUBE_REFRESH_TOK
 | `AI_MODEL_FAST` | – | Fast Groq fallback (`llama-3.1-8b-instant`) |
 | `GEMINI_API_KEY` | ✅ | Gemini key — content fallback, vision, music mood |
 | `GEMINI_MODEL` | – | Optional override pinning the start of the Gemini chain |
+| `TTS_PROVIDER` | – | Voiceover TTS provider: `groq` (default) \| `canopy`. Auto-falls back to the other, then Gemini TTS |
+| `GROQ_TTS_MODEL` | – | Override the Groq Orpheus TTS model (default `canopylabs/orpheus-v1-english`) |
+| `GROQ_TTS_VOICE` | – | Default Groq Orpheus voice when none is selected in Settings |
+| `CANOPY_TTS_URL` | – | Self-hosted Canopy TTS endpoint URL (used when `TTS_PROVIDER=canopy`) |
+| `CANOPY_TTS_KEY` | – | API key for the self-hosted Canopy TTS endpoint |
+| `CANOPY_TTS_VOICE` | – | Default voice for the self-hosted Canopy TTS endpoint |
 | `CLOUDINARY_CLOUD_NAME` | ✅ | Media hosting (images + audio) |
 | `CLOUDINARY_UPLOAD_PRESET` | ✅ | Unsigned upload preset |
 | `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | – | For deleting media after publish |

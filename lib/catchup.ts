@@ -14,7 +14,7 @@
 import { prisma } from "@/lib/prisma";
 import { claimCommentForReply, releaseCommentClaim, markCommentReplied } from "@/lib/commentClaim";
 import { PostCommentContext, getGrokClient, checkGrokHealth } from "@/lib/grok";
-import { getAIClient } from "@/lib/ai-factory";
+import { getAIClient, generateJSONResilient } from "@/lib/ai-factory";
 // renderPostToJpeg and renderStoryToJpeg are imported dynamically at call sites
 // to prevent Turbopack from bundling Node.js-only modules (satori/sharp) for the edge runtime.
 import { uploadBufferToStableCdn, uploadVideoToStableCdn, deleteFromCloudinary, generateCarouselImages } from "@/lib/imageGenerator";
@@ -1003,18 +1003,38 @@ export async function publishOverdueScheduled(
   const igConfigured = !!(igToken && igAcctId);
 
   // -- Self-heal: reap stuck "__CLAIMING__" locks ---------------------------------
-  // The claim guard below flips PENDING→FAILED("__CLAIMING__") to lock an entry
-  // while it publishes. If the process restarts mid-publish, the row stays
-  // FAILED("__CLAIMING__") forever and is never retried. Reset any such lock older
-  // than ~10 min back to PENDING so it gets picked up again. (Mirrors the story
-  // self-heal pattern in runAutoStory.)
-  const claimCutoff = new Date(Date.now() - 10 * 60 * 1000);
-  const reaped = await prisma.scheduledPost.updateMany({
-    where: { status: "FAILED", error: "__CLAIMING__", createdAt: { lt: claimCutoff }, ...brandFilter(ctx) },
-    data:  { status: "PENDING", error: null },
-  }).catch(() => ({ count: 0 }));
-  if (reaped.count > 0) {
-    console.log(`[Catchup] Claim-lock self-heal: reset ${reaped.count} stuck __CLAIMING__ post(s) older than 10min to PENDING`);
+  // The claim guard below flips PENDING→FAILED("__CLAIMING__:<ts>") to lock an entry
+  // while it publishes. If the process restarts mid-publish, the row stays locked
+  // forever and is never retried. Reset any such lock whose CLAIM is older than ~10
+  // min back to PENDING. CRITICAL: we measure the CLAIM age (the <ts> embedded in the
+  // sentinel), NOT the row's createdAt — keying on createdAt instantly reaped the
+  // active claim of any post older than 10 min mid-publish, which re-queued it for a
+  // concurrent sweep and produced DUPLICATE posts.
+  const claimCutoffMs = Date.now() - 10 * 60 * 1000;
+  const stuckClaims = await prisma.scheduledPost.findMany({
+    where:  { status: "FAILED", error: { startsWith: "__CLAIMING__" }, ...brandFilter(ctx) },
+    select: { id: true, error: true },
+  }).catch((e: any) => {
+    // Don't silently swallow — if this read fails, stuck claims go un-reaped and
+    // those posts never publish, with no signal otherwise.
+    console.warn("[Catchup] Claim-lock self-heal: stuck-claim read failed (stuck posts may not be reaped):", e?.message ?? e);
+    return [] as { id: string; error: string | null }[];
+  });
+  const reapIds = stuckClaims
+    .filter((s) => {
+      const ts = Number(String(s.error ?? "").split(":")[1] ?? 0);
+      // No embedded timestamp (legacy "__CLAIMING__") OR claimed >10 min ago → reap.
+      return !ts || ts < claimCutoffMs;
+    })
+    .map((s) => s.id);
+  if (reapIds.length > 0) {
+    const reaped = await prisma.scheduledPost.updateMany({
+      where: { id: { in: reapIds }, status: "FAILED", error: { startsWith: "__CLAIMING__" } },
+      data:  { status: "PENDING", error: null },
+    }).catch(() => ({ count: 0 }));
+    if (reaped.count > 0) {
+      console.log(`[Catchup] Claim-lock self-heal: reset ${reaped.count} stuck claim(s) (claimed >10min ago) to PENDING`);
+    }
   }
 
   const overdue = await prisma.scheduledPost.findMany({
@@ -1074,9 +1094,11 @@ export async function publishOverdueScheduled(
       // gets count=1 proceeds; the other sees count=0 and skips.
       // On success the entry is reset to PUBLISHED; on real failure the catch
       // block overwrites the sentinel with the real error message.
+      // The sentinel embeds the CLAIM time so the self-heal reaper above can tell an
+      // ACTIVE claim from a genuinely stuck one (reap by claim age, NOT row createdAt).
       const claimed = await prisma.scheduledPost.updateMany({
         where: { id: sp.id, status: "PENDING" },
-        data:  { status: "FAILED", error: "__CLAIMING__" },
+        data:  { status: "FAILED", error: `__CLAIMING__:${Date.now()}` },
       }).catch(() => ({ count: 0 }));
       if (claimed.count === 0) {
         console.log(`[Catchup] Skipping SP ${sp.id} — already claimed by a concurrent scheduler call`);
@@ -3805,9 +3827,12 @@ RULES:
 - "caption" = ONLY prose with emojis. Must be DIFFERENT from the card content.
 - hashtags: EXACTLY 3. Mix 1 high-volume (>500k) + 1 medium (50k-500k) + 1 niche (<50k).${toneDirective}${angleBlock}${ytExtra}${avoidBlock}${languageDirective}`;
 
-        const raw = await ai.generateContentJSON(prompt,
+        // generateJSONResilient walks the selected provider's JSON chain THEN falls back
+        // to the OTHER provider when every model is empty/quota-exhausted (429/limit:0),
+        // so YT auto-gen doesn't ship canned filler when one provider is rate-limited.
+        const raw = await generateJSONResilient(prompt,
           buildBrandSystemPrompt(brand) + " This is for a YouTube channel — optimize hooks to grab a broad audience. Return ONLY valid JSON — no markdown, no preamble. Every post you write must be distinct from previous ones — never repeat the same facts, angle, or wording." + languageDirective,
-          2500);
+          2500, ctx.brandId);
 
         let parsed: any = {};
         try {
@@ -3878,13 +3903,13 @@ RULES:
         const hhStaggered = ((hh || 0) + reuseCycle) % 24;
 
         let scheduledFor = wallTimeToUTC(istYear, istMonth, istDay, hhStaggered, mm, IST_TZ);
+        // If the slot already passed today, publish promptly TODAY instead of pushing
+        // to tomorrow — pushing dated the Short tomorrow, escaping today's generation
+        // cap (counted by scheduledFor-today) → over-generation + multiple Shorts all
+        // landing on the same pushed slot (the "4 at 9:30 PM" pile-up). Keeping it on
+        // today makes the cap count it and prevents the collision.
         if (scheduledFor.getTime() <= Date.now()) {
-          const tomorrow = new Date(nowUtc);
-          tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-          scheduledFor = wallTimeToUTC(
-            tomorrow.getUTCFullYear(), tomorrow.getUTCMonth() + 1, tomorrow.getUTCDate(),
-            hh, mm, IST_TZ
-          );
+          scheduledFor = new Date();
         }
 
         await prisma.scheduledPost.create({
@@ -4231,7 +4256,7 @@ export async function runDailyHealthCheck(): Promise<boolean> {
     }).catch(() => []);
 
     const failedPosts24h = failedRaw24h
-      .filter((p) => p.error && p.error !== "__CLAIMING__")
+      .filter((p) => p.error && !p.error.startsWith("__CLAIMING__"))
       .map((p) => ({
         title:    p.title,
         error:    p.error!,
