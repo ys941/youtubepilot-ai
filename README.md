@@ -74,13 +74,13 @@ npm run dev                   # http://localhost:3000
 Once configured and left running, here is what happens automatically for **each channel ("brand")** you've added:
 
 1. **It wakes up on schedule.** An in-process loop ticks every ~5 minutes; a daily timer also fires once a day. No external cron needed.
-2. **It picks fresh topics.** It pulls the next topics from your rotating list. When the list runs dry, the AI invents new same-style topics so content never repeats.
-3. **It writes the content.** Using your chosen AI provider (Grok or Gemini) and your brand's niche + persona, it writes a hook, the body points, and a CTA in valid structured JSON.
+2. **It picks fresh topics.** It pulls the next topics from your rotating list. When the list runs dry, the AI invents new same-style topics so content never repeats. **Anti-repetition is theme-level**: the generator is shown your recent titles (up to 40) and told to pick a genuinely **different subject/theme**, not just reword a recent one — so the channel doesn't keep circling the same idea.
+3. **It writes the content.** Using your chosen AI provider (Grok or Gemini) and your brand's niche + persona, it writes a hook, the body points, and a CTA in valid structured JSON. **Titles are audit-driven** — a concrete everyday noun plus a specific curiosity or benefit (a number only when truthful), with vague/abstract patterns banned.
 4. **It designs the cards.** Each Short becomes a vertical 9:16 **carousel**: a curiosity **hook cover** → several **large-text content slides** → a **SUBSCRIBE outro**. A different color theme is chosen per Short.
 5. **It renders the video.** Cards are rasterized (Satori → SVG → Sharp) and stitched into a 720×1280 MP4 with **ffmpeg**. Gemini "looks at" the cover to pick a mood, and a matching royalty-free **Jamendo** track is mixed under it.
 6. **It writes the metadata.** One rich caption (hook → intro → key points → "why it matters" → follow CTA) is reused as the description; AI generates **YouTube search tags** + `#Shorts`; the hook line becomes the custom thumbnail.
 7. **It publishes** at your configured per-weekday times via the YouTube Data API v3, then **posts a seed comment** to kick-start engagement.
-8. **It engages.** It reads new comments on recent videos and **replies with Grok** — and is careful never to reply to itself (matches channel id, title, and @handle, including the seed comment).
+8. **It engages.** It reads new comments on recent videos and **replies with Grok** — mirroring the **viewer's own language and script** (English, Hindi, Hinglish, or a mix), and careful never to reply to itself (matches channel id, title, and @handle, including the seed comment).
 9. **It reports.** Channel + per-video analytics sync to the dashboard, every action is logged to an activity feed with live SSE alerts, and a **daily health email** summarizes publishes, failures, 24h stats, and system health.
 
 You mostly just watch the dashboard.
@@ -169,7 +169,7 @@ All scheduling runs in a configurable timezone (per brand; neutral default **UTC
 
 `publishPostToYouTubeShort()` → `buildShortForPost()` (`lib/youtubePublish.ts`) assembles every Short:
 
-1. **Hook cover (~2s).** An AI-written curiosity-gap line on a bold themed card. Front-loaded fast because ~70–90% of viewers swipe in the first ~2 seconds. This image is also set as the **custom YouTube thumbnail**.
+1. **Hook cover (~2s).** An AI-written curiosity-gap line on a bold themed card. Hooks are **audit-driven**: they win the first second (a surprising/concrete word up front, lead with a question or concrete everyday specific), are forced **concrete and specific**, and are held to a strict **anti-fabrication** rule — never invent or exaggerate a number or magnitude claim. Front-loaded fast because ~70–90% of viewers swipe in the first ~2 seconds. This image is also set as the **custom YouTube thumbnail**.
 2. **Content slides.** `buildContentSlideSpecs()` splits the post's full content into one point per large-text slide. `CAROUSEL` posts render their authored slides; quiz types render setup/question/option slides and **never** reveal the answer.
 3. **SUBSCRIBE outro** (`lib/hookCard.ts`).
 4. **Render.** Cards are designed full-frame 9:16 (**1080×1920**) and rendered at **720×1280** H.264. They are rasterized with **Satori → SVG → Sharp** (NOT raw SVG) because the production container's librsvg rejects hand-written SVG; Satori output rasterizes reliably. The 720p render avoids ffmpeg stalling at `frame=0` on memory/CPU-constrained hosts.
