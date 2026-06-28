@@ -1125,6 +1125,70 @@ export async function sendDailyHealthReport(opts: {
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
+// MORNING DIGEST  — once-a-day "last 24h" summary of the YouTube channel.
+// Each section is optional; only included sections (per the user's Settings toggles)
+// are passed in, and only non-empty ones render.
+// ════════════════════════════════════════════════════════════════════════════════
+
+export interface MorningDigestPayload {
+  dateLabel:     string;
+  yt?:           { videos24h: number; views: number; likes: number; comments: number } | null;
+  ytSubscribers?:{ count: number; delta: number | null } | null;
+  ytComments?:   Array<{ author: string; text: string; videoTitle?: string }> | null;
+  ytPublished?:  Array<{ title: string; url: string }> | null;
+  topContent?:   { platform: string; title: string; metric: string } | null;
+  engagement?:   { commentsReplied: number } | null;
+  upcoming?:     Array<{ title: string; when: string }> | null;
+  failures?:     Array<{ title: string; error: string }> | null;
+  health?:       Array<{ label: string; ok: boolean }> | null;
+  growth?:       Array<{ label: string; value: string }> | null;
+  aiUsage?:      { generations: number; tokens: number } | null;
+}
+
+const digestEsc = (s: string) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+export async function sendMorningDigestEmail(p: MorningDigestPayload): Promise<void> {
+  const sec = (title: string, inner: string) =>
+    `<div style="margin:0 0 22px"><div style="font-size:13px;font-weight:700;color:#FF6b78;letter-spacing:.4px;text-transform:uppercase;margin:0 0 10px">${digestEsc(title)}</div>${inner}</div>`;
+  const stat = (label: string, value: string) =>
+    `<td style="padding:10px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:10px;text-align:center"><div style="font-size:20px;font-weight:800;color:#fff">${digestEsc(value)}</div><div style="font-size:11px;color:#9aa7b8;margin-top:2px">${digestEsc(label)}</div></td>`;
+  const statRow = (cells: string[]) =>
+    `<table width="100%" cellspacing="8" cellpadding="0" style="border-collapse:separate"><tr>${cells.join("")}</tr></table>`;
+  const li = (s: string) => `<div style="font-size:13px;color:#d6deea;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)">${s}</div>`;
+  const commentLi = (author: string, text: string, tag?: string) =>
+    li(`<strong style="color:#fff">@${digestEsc(author)}</strong>${tag ? ` <span style="color:#9aa7b8;font-size:11px">· ${digestEsc(tag)}</span>` : ""}<br><span style="color:#c2ccd9">${digestEsc(text).slice(0, 280)}</span>`);
+
+  const blocks: string[] = [];
+
+  if (p.yt) blocks.push(sec("▶️ YouTube — last 24h", statRow([
+    stat("New videos", String(p.yt.videos24h)), stat("Views", String(p.yt.views)), stat("Likes", String(p.yt.likes)),
+  ]) + statRow([ stat("Comments", String(p.yt.comments)), "", "" ])));
+  if (p.ytSubscribers) blocks.push(sec("👥 Subscribers", statRow([ stat("Subscribers", String(p.ytSubscribers.count)), stat("Change (24h)", p.ytSubscribers.delta == null ? "—" : (p.ytSubscribers.delta >= 0 ? `+${p.ytSubscribers.delta}` : String(p.ytSubscribers.delta))) ])));
+  if (p.ytPublished?.length) blocks.push(sec("🆕 Published", p.ytPublished.map((x) => li(`<a href="${digestEsc(x.url)}" style="color:#8ab4ff;text-decoration:none">${digestEsc(x.title)}</a>`)).join("")));
+  if (p.ytComments?.length) blocks.push(sec(`💬 New comments (${p.ytComments.length})`, p.ytComments.slice(0, 15).map((c) => commentLi(c.author, c.text, c.videoTitle)).join("")));
+
+  if (p.topContent) blocks.push(sec("🏆 Top performer (24h)", li(`<strong style="color:#fff">${digestEsc(p.topContent.title)}</strong> <span style="color:#9aa7b8">· ${digestEsc(p.topContent.platform)}</span><br><span style="color:#c2ccd9">${digestEsc(p.topContent.metric)}</span>`)));
+  if (p.engagement) blocks.push(sec("↩️ Auto-engagement (24h)", statRow([ stat("Comments replied", String(p.engagement.commentsReplied)), "", "" ])));
+  if (p.upcoming?.length) blocks.push(sec("📅 Scheduled for today", p.upcoming.map((x) => li(`<span style="color:#9aa7b8">${digestEsc(x.when)}</span> — ${digestEsc(x.title)}`)).join("")));
+  if (p.failures?.length) blocks.push(sec(`⚠️ Failures (24h) — ${p.failures.length}`, p.failures.slice(0, 10).map((x) => li(`<strong style="color:#ffb4b4">${digestEsc(x.title)}</strong><br><span style="color:#c2ccd9">${digestEsc(x.error).slice(0, 200)}</span>`)).join("")));
+  if (p.growth?.length) blocks.push(sec("📈 Growth vs prior day", p.growth.map((g) => li(`${digestEsc(g.label)}: <strong style="color:#fff">${digestEsc(g.value)}</strong>`)).join("")));
+  if (p.health?.length) blocks.push(sec("🛡️ System health", p.health.map((h) => li(`${h.ok ? "🟢" : "🔴"} ${digestEsc(h.label)}`)).join("")));
+  if (p.aiUsage) blocks.push(sec("🧠 AI usage (24h)", statRow([ stat("Generations", String(p.aiUsage.generations)), stat("Tokens", String(p.aiUsage.tokens)) ])));
+
+  const body = blocks.length ? blocks.join("") : `<div style="color:#9aa7b8">No activity to report.</div>`;
+  const html = emailWrapper({
+    accentColor: "#FF3b47",
+    icon:        "☀️",
+    heading:     "Your Morning Digest",
+    subheading:  `Last 24 hours · ${digestEsc(p.dateLabel)}`,
+    body,
+    ctaLabel:    "Open Dashboard",
+    ctaUrl:      APP_URL,
+  });
+  await sendEmail("Morning Digest", html, "morning_digest", true /* skip rate limit */);
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
 // TEST EMAIL
 // ════════════════════════════════════════════════════════════════════════════════
 

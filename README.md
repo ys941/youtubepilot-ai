@@ -149,6 +149,7 @@ Content slots have **stable internal IDs** (kept for data/schema compatibility �
   - **Performance note:** voiceover adds a TTS call per Short (plus a Whisper call and one extra re-encode **only when `burnCaptions` is ON**) — heavier on memory, which is why it ships opt-in and OFF by default.
 - **AI YouTube search tags** — `buildYouTubeTagsAI()` generates search-optimized keyword tags (deterministic `buildYouTubeTags()` fallback); `uploadShort()` adds `#` prefixes, appends `#Shorts`, and uploads via Data API v3.
 - **YouTube comment auto-replies** — `replyToYouTubeComments()` reads recent-video comment threads (and nested replies) and replies with **Grok**, deduped via the `Comment` table and an atomic claim. **Robust own-comment skipping**: it compares the channel id, channel title, and `@handle` so it never replies to itself (including the seed comment). Toggle in **Settings → YouTube**.
+- **Transparent AI-assistant reply persona** — the reply bot identifies as the **channel's AI assistant** (driven by `buildBrandPersona`, niche-neutral from your `BrandConfig`). It never impersonates a specific named human; if a viewer asks whether it's a bot/AI, it answers honestly and warmly, and points anything personal to a qualified professional.
 
 ### 📅 Scheduling (per-weekday)
 All scheduling runs in a configurable timezone (per brand; neutral default **UTC**). The auto-poster uses a **per-weekday** model: each weekday can be **"Use global"** (inherit the global schedule) or **"Custom"** (override it).
@@ -161,6 +162,7 @@ All scheduling runs in a configurable timezone (per brand; neutral default **UTC
 ### 📊 Analytics & notifications
 - **Real-time analytics** — YouTube channel + per-video stats from the Data API (synced to the DB), surfaced on Overview + Analytics.
 - **Daily health email** — digest via Resend/Nodemailer: system health (DB / AI / YouTube), today's YouTube posts, today's auto-generated posts, upcoming scheduled posts, 24h stats, failures, and rate-limit events.
+- **Morning Digest** — an optional once-a-day summary email of the **last 24 hours** of your YouTube channel, sent at a time you choose (IST). In **Settings → Morning Digest** you flip a master switch and pick exactly what to include: 24h insights, new comments, published videos, subscribers, top performer, auto-engagement, today's schedule, failures, growth vs. prior day, system health, and AI usage. Built by `lib/morningDigest.ts` (each section best-effort), rendered by `sendMorningDigestEmail`, and polled from `instrumentation.ts` once per day at the configured hour.
 - **Activity + live alerts** — every publish/reply/topic-use logged to `ActivityLog`; real-time alerts stream over SSE (`/api/notifications/stream`) and email (publish, fail, YouTube published/failed, comment replied).
 
 ---
@@ -247,6 +249,8 @@ Both `Post` and `ScheduledPost` carry a `platform` column (default `"youtube"`).
 | **Manual** | `POST /api/posts/[id]/publish` | render → Short → upload via Data API v3. |
 | **Scheduler / catchup** | `publishOverdueScheduled()` | reads each overdue post and publishes via `publishPostToYouTubeShort()`. |
 | **Media folder** | `POST /api/media/[id]/publish-youtube` | publishes the **actual uploaded file** (video → direct upload; image → rendered Short). |
+
+**Large-media direct upload.** In the Media library, large files (100 MB+ videos) upload **straight to Cloudinary from the browser** — the page fetches an unsigned upload config from `GET /api/upload`, uploads the file directly, then `POST`s only the resulting URL + metadata as small JSON. This bypasses the server's multipart body limit, so big videos no longer fail with *"Failed to parse body as FormData."* Small files (or setups without Cloudinary configured) automatically fall back to the legacy multipart server path.
 
 ### Idempotency & self-healing
 - **`youtubeVideoId`** is stored on both `ScheduledPost` and `Post`; every YouTube path re-reads the freshest value before uploading, so retries never double-post.

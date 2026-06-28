@@ -145,6 +145,29 @@ export interface YouTubeSettings {
   reelPublishTimes?: string[];
 }
 
+/**
+ * Morning Digest — a once-a-day email summarising the last 24h of the YouTube
+ * channel. `enabled` is the master switch; `sendTime` is "HH:MM" in IST. Every other
+ * field is an item the user can include/exclude from the digest.
+ */
+export interface MorningDigestSettings {
+  enabled:        boolean;   // master on/off
+  sendTime:       string;    // "HH:MM" IST, e.g. "08:00"
+  // ── YouTube ──
+  ytInsights:     boolean;   // 24h views, likes, comments
+  ytComments:     boolean;   // new comments (with text + author)
+  ytPublished:    boolean;   // videos/Shorts published in the last 24h
+  ytSubscribers:  boolean;   // subscriber count + change
+  // ── Cross-cutting ──
+  topContent:     boolean;   // best-performing video of the last 24h
+  engagement:     boolean;   // comments the bot replied to
+  upcomingToday:  boolean;   // what's scheduled to publish today
+  failures:       boolean;   // failed publishes / errors in the last 24h
+  systemHealth:   boolean;   // API / webhook / quota health
+  growthDeltas:   boolean;   // subscriber change vs prior day
+  aiUsage:        boolean;   // AI generations + tokens used
+}
+
 export interface AllPreferences {
   ai:            AiPreferences;
   notifications: NotificationPreferences;
@@ -152,6 +175,7 @@ export interface AllPreferences {
   autoPost:      AutoPostSettings;
   stories:       StorySettings;
   youtube:       YouTubeSettings;
+  morningDigest: MorningDigestSettings;
   /**
    * Per-account default content prompt for Instagram generation.
    * Optional — empty string means "use the built-in default". Stored in
@@ -226,6 +250,21 @@ export const DEFAULTS: AllPreferences = {
     dailySchedule:     [],   // empty → fall back to the global fields above
     customScheduleOnly: false,   // true → skip days with no custom entry (ignore global)
     reelPublishTimes:  [],   // empty → cross-post Reels immediately (current behaviour)
+  },
+  morningDigest: {
+    enabled:       false,   // opt-in
+    sendTime:      "08:00", // 8 AM IST
+    ytInsights:    true,
+    ytComments:    true,
+    ytPublished:   true,
+    ytSubscribers: true,
+    topContent:    true,
+    engagement:    true,
+    upcomingToday: true,
+    failures:      true,
+    systemHealth:  true,
+    growthDeltas:  true,
+    aiUsage:       false,
   },
   igDefaultPrompt: "",
   ytDefaultPrompt: "",
@@ -339,6 +378,7 @@ function mergeOverDefaults(raw: Partial<AllPreferences> | null | undefined): All
     autoPost:      { ...DEFAULTS.autoPost,      ...((r.autoPost      as any) ?? {}) },
     stories:       { ...DEFAULTS.stories,       ...((r.stories       as any) ?? {}) },
     youtube:       { ...DEFAULTS.youtube,       ...((r.youtube       as any) ?? {}) },
+    morningDigest: { ...DEFAULTS.morningDigest, ...((r.morningDigest as any) ?? {}) },
     igDefaultPrompt: typeof r.igDefaultPrompt === "string" ? r.igDefaultPrompt : (DEFAULTS.igDefaultPrompt ?? ""),
     ytDefaultPrompt: typeof r.ytDefaultPrompt === "string" ? r.ytDefaultPrompt : (DEFAULTS.ytDefaultPrompt ?? ""),
     brand:         mergeBrand((r.brand as any) ?? null),
@@ -374,6 +414,7 @@ function mergePartial(base: AllPreferences, prefs: Partial<AllPreferences>): All
     autoPost:      { ...base.autoPost,      ...(prefs.autoPost      ?? {}) },
     stories:       { ...base.stories,       ...(prefs.stories       ?? {}) },
     youtube:       { ...base.youtube,       ...(prefs.youtube       ?? {}) },
+    morningDigest: { ...base.morningDigest, ...(prefs.morningDigest ?? {}) },
     igDefaultPrompt: prefs.igDefaultPrompt ?? base.igDefaultPrompt ?? "",
     ytDefaultPrompt: prefs.ytDefaultPrompt ?? base.ytDefaultPrompt ?? "",
     brand:         prefs.brand ? deepMergeBrand(base.brand, prefs.brand) : base.brand,
@@ -391,13 +432,19 @@ export async function readPreferences(): Promise<AllPreferences> {
     if (!row) return structuredClone(DEFAULTS);
     // Re-shape the singleton row (its columns are the section blobs) so it can
     // flow through the shared merge helper.
+    // morningDigest has no dedicated column — it's stashed inside the `notifications`
+    // blob (same pattern as igDefaultPrompt living in the `ai` blob). Pull it out as
+    // its own top-level section and keep the `notifications` object clean.
+    const notifBlob = (row.notifications as any) ?? {};
+    const { morningDigest: notifMorningDigest, ...notifRest } = notifBlob;
     return mergeOverDefaults({
       ai:            (row.ai            as any) ?? undefined,
-      notifications: (row.notifications as any) ?? undefined,
+      notifications: notifRest,
       prompts:       (row.prompts       as any) ?? undefined,
       autoPost:      (row.autoPost      as any) ?? undefined,
       stories:       (row.stories       as any) ?? undefined,
       youtube:       (row.youtube       as any) ?? undefined,
+      morningDigest: notifMorningDigest,
       // igDefaultPrompt/ytDefaultPrompt are persisted inside the `ai` blob for the
       // primary brand (the singleton schema has no dedicated columns for them).
       igDefaultPrompt: (row.ai as any)?.igDefaultPrompt,
@@ -424,6 +471,9 @@ export async function writePreferences(prefs: Partial<AllPreferences>): Promise<
     igDefaultPrompt: merged.igDefaultPrompt ?? "",
     ytDefaultPrompt: merged.ytDefaultPrompt ?? "",
   };
+  // morningDigest has no dedicated column — stash it inside the `notifications` blob
+  // (round-trips via readPreferences above).
+  const notificationsBlob = { ...merged.notifications, morningDigest: merged.morningDigest };
   // Prisma expects Json fields as `InputJsonValue` (no custom type index signatures).
   // Casting via `as any` is safe here — these are plain serialisable objects.
   await prisma.preferences.upsert({
@@ -431,7 +481,7 @@ export async function writePreferences(prefs: Partial<AllPreferences>): Promise<
     create: {
       id:            "singleton",
       ai:            aiBlob             as any,
-      notifications: merged.notifications as any,
+      notifications: notificationsBlob  as any,
       prompts:       merged.prompts       as any,
       autoPost:      merged.autoPost      as any,
       stories:       merged.stories       as any,
@@ -440,7 +490,7 @@ export async function writePreferences(prefs: Partial<AllPreferences>): Promise<
     },
     update: {
       ai:            aiBlob             as any,
-      notifications: merged.notifications as any,
+      notifications: notificationsBlob  as any,
       prompts:       merged.prompts       as any,
       autoPost:      merged.autoPost      as any,
       stories:       merged.stories       as any,
