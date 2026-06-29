@@ -25,6 +25,26 @@ const GROQ_TTS_VOICE = process.env.GROQ_TTS_VOICE || "autumn";
 
 type TtsResult = { audio: Buffer; format: "wav" | "mp3" };
 
+// Safe upper bound on characters sent to the hosted TTS in one request. The hosted
+// models reject / truncate very long inputs; rather than hard-failing a whole card,
+// we trim to the last sentence boundary at or before this cap (falling back to a hard
+// cut only if no boundary is found). Overridable via TTS_MAX_CHARS.
+const TTS_MAX_CHARS = Math.max(200, Number(process.env.TTS_MAX_CHARS) || 1800);
+
+// Trim `text` to a safe length, preferring a sentence boundary near the cap so we
+// never cut mid-sentence when avoidable. Returns the input unchanged when short.
+function capTtsInput(text: string): string {
+  const t = (text ?? "").trim();
+  if (t.length <= TTS_MAX_CHARS) return t;
+  const slice = t.slice(0, TTS_MAX_CHARS);
+  // Last sentence end (.!?) in the slice — keep at least 60% so we don't over-trim.
+  const lastEnd = Math.max(slice.lastIndexOf("."), slice.lastIndexOf("!"), slice.lastIndexOf("?"));
+  if (lastEnd >= TTS_MAX_CHARS * 0.6) return slice.slice(0, lastEnd + 1).trim();
+  // No good sentence boundary — fall back to the last word boundary.
+  const lastSpace = slice.lastIndexOf(" ");
+  return (lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trim();
+}
+
 function groqKey(): string | undefined {
   return process.env.GROK_API_KEY || process.env.GROQ_API_KEY;
 }
@@ -197,6 +217,11 @@ export async function synthesizeSpeech(
   text: string,
   opts?: { voice?: string },
 ): Promise<TtsResult | null> {
+  // Guard against over-long input: trim to a safe cap at a sentence boundary so a
+  // long card narrates a clean (slightly shorter) line instead of failing entirely.
+  text = capTtsInput(text);
+  if (!text) return null;
+
   const selected = (process.env.TTS_PROVIDER || "groq").toLowerCase();
 
   // Build provider order: selected first, then the OTHER configured one, then Gemini.

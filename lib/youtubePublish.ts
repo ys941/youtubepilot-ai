@@ -459,6 +459,26 @@ function buildContentSlideSpecs(post: YtPostInput): Array<{ slide: number; headl
   const title = (post.title ?? "").replace(/\*\*/g, "").trim() || "Did You Know?";
   const rawContent = post.content ?? "";
 
+  // CAROUSEL: the visible cards come from `post.carouselSlides` (see
+  // renderPostCardBuffers). Derive the voice specs from the SAME slides — one spec
+  // per slide using its headline+body — so the spoken narration is 1:1 with the
+  // on-screen cards (the per-card sync path aligns when specs.length === cards). We
+  // must NOT split post.content (the caption prose) here, or the voice narrates text
+  // the viewer never sees.
+  const cSlides = Array.isArray(post.carouselSlides) ? post.carouselSlides : null;
+  if (post.type === "CAROUSEL" && cSlides && cSlides.length >= 2) {
+    return cSlides
+      .map((s) => {
+        const headline = (s.headline ?? "").replace(/\*\*/g, "").trim();
+        const body     = (s.body ?? "").replace(/\*\*/g, "").trim();
+        // Speak headline + body so the narration matches what's rendered on the card.
+        const spoken = [headline, body].filter(Boolean).join(". ");
+        return { headline: headline || title, body: spoken };
+      })
+      .filter((s) => (s.body ?? "").trim().length > 0)
+      .map((s, i) => ({ slide: i + 1, headline: s.headline, body: s.body }));
+  }
+
   // De-numbered, de-bulleted, non-empty content lines (no '#' heading-only lines).
   const lines = rawContent
     .split("\n")

@@ -425,7 +425,16 @@ async function renderWithTier(
       // (re)muxed. Only reached when narration is enabled (the Settings toggle).
       const voicePath = join(dir, "voice.wav");
       await writeFile(voicePath, voiceTrack);
-      const fadeOutStart = Math.max(0, totalDuration - 2);
+      // Don't cut the narration mid-sentence. The card durations (voDurations) are
+      // built to sum to the voice length, but probe rounding can leave the voice a
+      // hair longer than totalDuration; bound the mux to whichever is longer so the
+      // final words aren't clipped, clamped to a safety ceiling so a runaway track
+      // can't produce an over-long Short. (The copy-muxed video ends at its natural
+      // length; -t never shortens below the voice when voice is the driver.)
+      const VOICE_CEILING_SECS = 185; // just above YouTube's ~3-min Shorts cap, with headroom
+      const voiceSecs = await probeAudioDurationSec(voiceTrack).catch(() => 0);
+      const muxDuration = Math.min(VOICE_CEILING_SECS, Math.max(totalDuration, voiceSecs || 0));
+      const fadeOutStart = Math.max(0, muxDuration - 2);
       const burn = !!(assSubtitles && assSubtitles.trim());
       const fc: string[] = [];
       if (burn) {
@@ -462,7 +471,7 @@ async function renderWithTier(
         "-map", vmap, "-map", "[a]",
         ...vcodec,
         "-c:a", "aac", "-b:a", "128k",
-        "-t", String(totalDuration),
+        "-t", String(muxDuration),
         "-movflags", "+faststart",
         outPath,
       ]);
