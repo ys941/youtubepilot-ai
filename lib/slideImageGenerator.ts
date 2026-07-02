@@ -76,7 +76,9 @@ function parseBullets(text: string, max = 4): string[] {
   return text
     .split("\n")
     .filter((l) => l.trim())
-    .map((l) => l.replace(/^[•‣◦⁃\-*\d.]\s*/, "").replace(/\*\*/g, "").trim())
+    // Strip bullet/dash chars and the numbered-list prefix ONLY (e.g. "1. " / "1) ").
+    // IMPORTANT: do NOT strip bare leading digits — "30 minutes" must stay intact.
+    .map((l) => l.replace(/\*\*/g, "").replace(/^[\s•●▪►◦‣⁃'\-*]+/, "").replace(/^\d+[).]\s*/, "").trim())
     .filter(Boolean)
     .slice(0, max);
 }

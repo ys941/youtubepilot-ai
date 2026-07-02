@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  User, Instagram, Cpu, Bell, AlertTriangle,
+  User, Cpu, Bell, AlertTriangle,
   Eye, EyeOff, Loader2, Trash2,
   RotateCcw, Save, AlertCircle,
   ShieldCheck, Clock, Calendar,
@@ -235,17 +235,13 @@ function AccountTab() {
 
 interface BrandFormState {
   label:          string;
-  igToken:        string;
-  igAcctId:       string;
-  igUsername:     string;
-  fbPageId:       string;
   ytClientId:     string;
   ytClientSecret: string;
   ytRefreshToken: string;
 }
 
 const emptyForm: BrandFormState = {
-  label: "", igToken: "", igAcctId: "", igUsername: "", fbPageId: "",
+  label: "",
   ytClientId: "", ytClientSecret: "", ytRefreshToken: "",
 };
 
@@ -264,20 +260,6 @@ function BrandForm({
   return (
     <div className="rounded-2xl p-5 space-y-4 border border-white/[0.08]" style={{ background: "rgba(255,255,255,0.02)" }}>
       <GlassInput label="Account Label" value={form.label} onChange={set("label")} placeholder="e.g. Brand B" />
-
-      <div className="pt-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-2 flex items-center gap-1.5">
-          <Instagram size={12} /> Instagram
-        </p>
-        <div className="space-y-3">
-          <GlassInput label="Access Token"        value={form.igToken}   onChange={set("igToken")}   placeholder="Paste long-lived IG token" masked />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <GlassInput label="Business Account ID" value={form.igAcctId}  onChange={set("igAcctId")}  placeholder="17841…" />
-            <GlassInput label="Username"            value={form.igUsername} onChange={set("igUsername")} placeholder="@yourhandle" />
-          </div>
-          <GlassInput label="Facebook Page ID"    value={form.fbPageId}  onChange={set("fbPageId")}  placeholder="Optional" />
-        </div>
-      </div>
 
       <div className="pt-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-white/40 mb-2 flex items-center gap-1.5">
@@ -340,10 +322,6 @@ function AccountsTab() {
 
   const formToBody = (f: BrandFormState) => ({
     label:          f.label.trim(),
-    igToken:        f.igToken.trim()        || undefined,
-    igAcctId:       f.igAcctId.trim()       || undefined,
-    igUsername:     f.igUsername.trim()     || undefined,
-    fbPageId:       f.fbPageId.trim()       || undefined,
     ytClientId:     f.ytClientId.trim()     || undefined,
     ytClientSecret: f.ytClientSecret.trim() || undefined,
     ytRefreshToken: f.ytRefreshToken.trim() || undefined,
@@ -445,7 +423,7 @@ function AccountsTab() {
         <div>
           <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Accounts</h3>
           <p className="text-xs text-white/40 mt-0.5">
-            Manage the Instagram + YouTube accounts (brands) this dashboard controls.
+            Manage the YouTube channels (brands) this dashboard controls.
           </p>
         </div>
         {!adding && (
@@ -498,9 +476,6 @@ function AccountsTab() {
                 </div>
                 <div className="flex flex-wrap items-center gap-3 mt-1">
                   <span className="flex items-center gap-1 text-[11px] text-white/40">
-                    <Instagram size={10} /> {b.igUsername || (b.hasInstagram ? "connected" : "—")}
-                  </span>
-                  <span className="flex items-center gap-1 text-[11px] text-white/40">
                     <Youtube size={10} /> {b.ytChannelTitle || (b.hasYouTube ? "connected" : "—")}
                   </span>
                 </div>
@@ -549,7 +524,6 @@ function AccountsTab() {
                   initial={{
                     ...emptyForm,
                     label:      b.label,
-                    igUsername: b.igUsername ?? "",
                     // Secrets are never returned by the API — leave blank; only
                     // non-empty fields are sent on save so existing creds persist.
                   }}
@@ -770,7 +744,7 @@ function AiTab() {
   if (loading) return <SkeletonBlock rows={3} />;
 
   const tones = ["Friendly", "Professional", "Engaging", "Educational", "Casual", "Urgent"];
-  const types  = ["Educational", "Knowledge Quiz", "Pro Tip", "Story / Example", "Myth-Fact", "Carousel", "How-To / Tips", "CTA", "Reel"];
+  const types  = ["Educational", "Knowledge Quiz", "Pro Tip", "Story / Example", "Myth-Fact", "Carousel", "How-To / Tips", "CTA"];
   const langs  = ["English", "Arabic", "Hindi", "Spanish", "French", "German"];
 
   return (
@@ -882,7 +856,6 @@ const POST_TYPES_META = [
   { id: "ECG_QUIZ",         label: "Knowledge Quiz",    emoji: "📈" },
   { id: "PREVENTIVE",       label: "How-To / Tips",     emoji: "🛡️" },
   { id: "CTA",              label: "CTA",               emoji: "📣" },
-  { id: "REEL",             label: "Reel Script",       emoji: "🎬" },
 ];
 
 function PromptsTab() {
@@ -895,9 +868,7 @@ function PromptsTab() {
   const [draft,    setDraft]    = useState<Record<string, string>>({});
 
   // Per-account default content prompts (saved through this same route).
-  const [igDefaultPrompt, setIgDefaultPrompt] = useState("");
   const [ytDefaultPrompt, setYtDefaultPrompt] = useState("");
-  const [savedIgDefault,  setSavedIgDefault]  = useState("");
   const [savedYtDefault,  setSavedYtDefault]  = useState("");
   const [savingDefaults,  setSavingDefaults]  = useState(false);
 
@@ -910,9 +881,7 @@ function PromptsTab() {
           setDefaults(d.data.defaults ?? {});
           setSaved(d.data.saved ?? {});
           setDraft(d.data.saved ?? {});
-          const ig = d.data.igDefaultPrompt ?? "";
           const yt = d.data.ytDefaultPrompt ?? "";
-          setIgDefaultPrompt(ig); setSavedIgDefault(ig);
           setYtDefaultPrompt(yt); setSavedYtDefault(yt);
         }
       })
@@ -924,7 +893,6 @@ function PromptsTab() {
   const defaultHint  = defaults[selected] ?? "";
   const isCustomized = !!saved[selected];
   const isDirty      = (draft[selected] ?? "") !== (saved[selected] ?? "");
-  const defaultsDirty = igDefaultPrompt !== savedIgDefault || ytDefaultPrompt !== savedYtDefault;
 
   const handleSave = async () => {
     setSaving(true);
@@ -957,11 +925,10 @@ function PromptsTab() {
       const res  = await fetch(withBrand("/api/settings/prompts", brandId), {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ igDefaultPrompt, ytDefaultPrompt }),
+        body:    JSON.stringify({ ytDefaultPrompt }),
       });
       const data = await res.json();
       if (data.success) {
-        setSavedIgDefault(igDefaultPrompt);
         setSavedYtDefault(ytDefaultPrompt);
         toast.success("Default prompts saved ✅", { id: tid });
       } else {
@@ -1025,19 +992,6 @@ function PromptsTab() {
           <p className="text-[11px] text-white/35 mt-1">
             Used as the default instruction when generating content for this account.
           </p>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-white/40 block mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
-            <Instagram size={11} /> Instagram default prompt
-          </label>
-          <textarea
-            value={igDefaultPrompt}
-            onChange={(e) => setIgDefaultPrompt(e.target.value)}
-            placeholder="e.g. Write authoritative, evidence-based posts for your audience…"
-            rows={3}
-            className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/25 outline-none resize-y"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-          />
         </div>
         <div>
           <label className="text-xs font-medium text-white/40 block mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
@@ -1161,30 +1115,23 @@ const ALL_POST_TYPES = [
   { id: "ECG_QUIZ",         label: "Knowledge Quiz", emoji: "📈" },
   { id: "PREVENTIVE",       label: "How-To / Tips",  emoji: "🛡️" },
   { id: "CTA",              label: "CTA",            emoji: "📣" },
-  { id: "REEL",             label: "Reel",           emoji: "🎬" },
 ];
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const DAY_FULL   = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 // Per-weekday schedule entry shape (mirrors lib/preferences DayScheduleEntry).
-// reelTimes is YouTube-only (per-day Instagram Reel publish slots); optional/empty
-// for the Auto-Post schedule, which never renders or persists it.
-type DayScheduleEntry = { day: number; enabled: boolean; postsPerDay: number; times: string[]; reelTimes?: string[] };
+type DayScheduleEntry = { day: number; enabled: boolean; postsPerDay: number; times: string[] };
 
 /**
- * Per-weekday timing + post-count editor (Feature 1). 7 rows: weekday name, an
- * enabled toggle, a posts/day stepper, and an editable time list. A day with no
- * entry uses the global controls ("used when a day has no custom schedule").
+ * Per-weekday timing + post-count editor. 7 rows: weekday name, an enabled toggle,
+ * a posts/day stepper, and an editable time list. A day with no entry uses the
+ * global controls ("used when a day has no custom schedule").
  * Value is the dailySchedule array; onChange writes the full updated array.
- *
- * `showReelTimes` (YouTube tab only — gated by "Also publish to Instagram") renders
- * an inline per-day Instagram Reel-times editor in each Custom row. The Auto-Post
- * tab leaves it false, so IG-reel timing never appears there.
  */
 function DayScheduleEditor({
-  value, onChange, showReelTimes = false,
-}: { value: DayScheduleEntry[]; onChange: (v: DayScheduleEntry[]) => void; showReelTimes?: boolean }) {
+  value, onChange,
+}: { value: DayScheduleEntry[]; onChange: (v: DayScheduleEntry[]) => void }) {
   const entryFor = (day: number) => value.find((e) => e.day === day) ?? null;
 
   const upsert = (day: number, patch: Partial<DayScheduleEntry>) => {
@@ -1211,22 +1158,6 @@ function DayScheduleEditor({
     upsert(day, { times: e.times.filter((x) => x !== t) });
   };
 
-  // Per-day Reel slots: order is significant (catchup maps Short N → reelTimes[N]),
-  // so append new slots rather than sorting.
-  const addReelTime = (day: number, t: string) => {
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) return;
-    const e = entryFor(day);
-    const reelTimes = e?.reelTimes ?? [];
-    if (reelTimes.includes(t)) return;
-    upsert(day, { reelTimes: [...reelTimes, t] });
-  };
-
-  const removeReelTime = (day: number, t: string) => {
-    const e = entryFor(day);
-    if (!e) return;
-    upsert(day, { reelTimes: (e.reelTimes ?? []).filter((x) => x !== t) });
-  };
-
   return (
     <div className="space-y-2">
       {DAY_FULL.map((name, day) => {
@@ -1238,14 +1169,11 @@ function DayScheduleEditor({
             name={name}
             entry={e}
             active={active}
-            showReelTimes={showReelTimes}
             onToggleActive={() => (active ? removeDay(day) : upsert(day, {}))}
             onToggleEnabled={(v) => upsert(day, { enabled: v })}
             onSetPosts={(n) => upsert(day, { postsPerDay: n })}
             onAddTime={(t) => addTime(day, t)}
             onRemoveTime={(t) => removeTime(day, t)}
-            onAddReelTime={(t) => addReelTime(day, t)}
-            onRemoveReelTime={(t) => removeReelTime(day, t)}
           />
         );
       })}
@@ -1254,24 +1182,19 @@ function DayScheduleEditor({
 }
 
 function DayScheduleRow({
-  name, entry, active, showReelTimes,
+  name, entry, active,
   onToggleActive, onToggleEnabled, onSetPosts, onAddTime, onRemoveTime,
-  onAddReelTime, onRemoveReelTime,
 }: {
   name: string;
   entry: DayScheduleEntry | null;
   active: boolean;
-  showReelTimes: boolean;
   onToggleActive: () => void;
   onToggleEnabled: (v: boolean) => void;
   onSetPosts: (n: number) => void;
   onAddTime: (t: string) => void;
   onRemoveTime: (t: string) => void;
-  onAddReelTime: (t: string) => void;
-  onRemoveReelTime: (t: string) => void;
 }) {
   const [newTime, setNewTime] = useState("12:00");
-  const [newReelTime, setNewReelTime] = useState("12:00");
   const dayOn = entry?.enabled ?? true;
   return (
     <div className={cn(
@@ -1362,47 +1285,6 @@ function DayScheduleRow({
               </button>
             </div>
           </div>
-
-          {/* Per-day Instagram Reel times (Feature 1) — YouTube tab only, and only when
-              "Also publish to Instagram (as Reels)" is ON. One Reel slot per Short. */}
-          {showReelTimes && (
-            <div className="pt-1">
-              <label className="text-[11px] font-medium text-brand-light/60 block mb-1 uppercase tracking-wider">
-                Instagram Reel times ({entry?.reelTimes?.length ?? 0})
-              </label>
-              <p className="text-[10px] text-white/30 mb-2 leading-relaxed">
-                Add <strong className="text-white/45">one Reel time per Short</strong> for this day
-                (match the {entry?.postsPerDay ?? 1} post{(entry?.postsPerDay ?? 1) !== 1 ? "s" : ""}/day above).
-                Each Short&apos;s Reel is deferred to its slot in order. Empty → use the global Reel times.
-              </p>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {(entry?.reelTimes ?? []).map((t, i) => (
-                  <span key={`${t}-${i}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono border border-brand-light/20 text-white/80" style={{ background: "rgb(var(--accent-2-rgb) / 0.06)" }}>
-                    <Clock size={11} className="text-brand-light" />
-                    {t}
-                    <button onClick={() => onRemoveReelTime(t)} className="text-white/30 hover:text-pink-400 transition-colors">
-                      <X size={10} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="time"
-                  value={newReelTime}
-                  onChange={(ev) => setNewReelTime(ev.target.value)}
-                  className="px-3 py-1.5 rounded-lg text-xs text-white outline-none font-mono"
-                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", colorScheme: "dark" }}
-                />
-                <button
-                  onClick={() => onAddReelTime(newReelTime)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white border border-white/[0.12] hover:border-brand-light/40 hover:text-brand-light transition-all flex items-center gap-1"
-                >
-                  <Plus size={12} /> Add Reel
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -1555,7 +1437,7 @@ function NotificationsTab() {
         <p className="text-xs text-white/35 mb-3 leading-relaxed">Browser push notifications aren&apos;t active yet. These toggles are saved but have no effect until web-push support ships.</p>
         <div className="rounded-xl border border-white/[0.06] px-4" style={{ background: "rgba(255,255,255,0.02)" }}>
           <Toggle label="Post Published (coming soon)"  description="Browser push when post goes live"        value={notifs.pushPublish}      onChange={set("pushPublish")}      disabled />
-          <Toggle label="New Comments (coming soon)"    description="When you receive Instagram comments"     value={notifs.pushComments}     onChange={set("pushComments")}     disabled />
+          <Toggle label="New Comments (coming soon)"    description="When you receive YouTube comments"       value={notifs.pushComments}     onChange={set("pushComments")}     disabled />
           <Toggle label="Weekly Report (coming soon)"   description="Summary every Monday morning"           value={notifs.pushWeeklyReport} onChange={set("pushWeeklyReport")} disabled />
         </div>
       </div>
@@ -1803,14 +1685,11 @@ function YouTubeTab() {
   const [customPromptExtra, setCustomPromptExtra] = useState("");
   const [postTimes,         setPostTimes]         = useState<string[]>(["19:00"]);
   const [scheduleDays,      setScheduleDays]      = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
-  const [publishToInstagram, setPublishToInstagram] = useState(false);
   const [voiceover,         setVoiceover]         = useState(false);
   const [voiceoverVoice,    setVoiceoverVoice]    = useState("daniel");
   const [burnCaptions,      setBurnCaptions]      = useState(false);
   const [dailySchedule,     setDailySchedule]     = useState<DayScheduleEntry[]>([]);
   const [customScheduleOnly, setCustomScheduleOnly] = useState(false);
-  const [reelPublishTimes,  setReelPublishTimes]  = useState<string[]>([]);
-  const [newReelTime,       setNewReelTime]       = useState("12:00");
   const [newTopic,          setNewTopic]          = useState("");
   const [newTime,           setNewTime]           = useState("19:00");
   const [status, setStatus] = useState<{ configured: boolean; ok: boolean; channel?: string; error?: string } | null>(null);
@@ -1834,13 +1713,11 @@ function YouTubeTab() {
           setCustomPromptExtra(cfg.customPromptExtra ?? "");
           setPostTimes(cfg.postTimes ?? ["19:00"]);
           setScheduleDays(cfg.scheduleDays ?? [0, 1, 2, 3, 4, 5, 6]);
-          setPublishToInstagram(cfg.publishToInstagram ?? false);
           setVoiceover(cfg.voiceover ?? false);
           setVoiceoverVoice(cfg.voiceoverVoice ?? "daniel");
           setBurnCaptions(cfg.burnCaptions ?? false);
           setDailySchedule(Array.isArray(cfg.dailySchedule) ? cfg.dailySchedule : []);
           setCustomScheduleOnly(cfg.customScheduleOnly ?? false);
-          setReelPublishTimes(Array.isArray(cfg.reelPublishTimes) ? cfg.reelPublishTimes : []);
           setStatus(d.status ?? null);
         }
       })
@@ -1866,11 +1743,6 @@ function YouTubeTab() {
     setPostTimes((prev) => [...prev, newTime].sort());
   };
 
-  const addReelTime = () => {
-    if (!newReelTime || reelPublishTimes.includes(newReelTime)) return;
-    setReelPublishTimes((prev) => [...prev, newReelTime].sort());
-  };
-
   const handleSave = async () => {
     setSaving(true);
     const tid = toast.loading("Saving YouTube settings...");
@@ -1878,7 +1750,7 @@ function YouTubeTab() {
       const res  = await fetch(withBrand("/api/settings/youtube", brandId), {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ enabled, privacy, secondsPerImage, targetShortSeconds, postsPerDay, descriptionSuffix, replyToComments, topics, postTypes, customPromptExtra, postTimes, scheduleDays, publishToInstagram, voiceover, voiceoverVoice, burnCaptions, dailySchedule, customScheduleOnly, reelPublishTimes }),
+        body:    JSON.stringify({ enabled, privacy, secondsPerImage, targetShortSeconds, postsPerDay, descriptionSuffix, replyToComments, topics, postTypes, customPromptExtra, postTimes, scheduleDays, voiceover, voiceoverVoice, burnCaptions, dailySchedule, customScheduleOnly }),
       });
       const data = await res.json();
       if (data.success) toast.success("YouTube settings saved ✅", { id: tid });
@@ -1899,8 +1771,8 @@ function YouTubeTab() {
       <div>
         <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>YouTube Settings</h3>
         <p className="text-xs text-white/35 mt-1 leading-relaxed">
-          Mirror every published post to YouTube as a vertical <strong className="text-white/50">Short</strong>.
-          The same card images are stitched into a 1080×1920 video and uploaded automatically — on the same schedule as Instagram.
+          Publish auto-generated content to YouTube as a vertical <strong className="text-white/50">Short</strong>.
+          The card images are stitched into a 1080×1920 video and uploaded automatically on the schedule below.
         </p>
       </div>
 
@@ -1937,8 +1809,8 @@ function YouTubeTab() {
         <Toggle
           label="Enable YouTube auto-poster & comment replies"
           description={enabled
-            ? "YouTube generates its own Shorts from the topics below and the AI auto-replies to comments. (Cross-posting from Instagram is controlled by the 'Also publish to YouTube' toggles in the Auto-Post and Stories tabs.)"
-            : "The YouTube auto-poster and comment replies are off. Cross-posting from Instagram is still controlled by the Auto-Post / Stories toggles."}
+            ? "YouTube generates its own Shorts from the topics below and the AI auto-replies to comments."
+            : "The YouTube auto-poster and comment replies are off."}
           value={enabled}
           onChange={setEnabled}
         />
@@ -2046,69 +1918,8 @@ function YouTubeTab() {
           <div>
             <p className="text-sm font-semibold text-white/70">Posts / Shorts Timing</p>
             <p className="text-xs text-white/30 mt-1 leading-relaxed">
-              YouTube Shorts currently publish alongside the Instagram schedule (mirroring). These timing
-              preferences apply to YouTube-targeted generation.
+              These timing preferences control when YouTube-targeted Shorts are generated and published.
             </p>
-          </div>
-
-          {/* Cross-post to Instagram */}
-          <div className="rounded-xl p-4 border border-white/[0.07] bg-white/[0.01]">
-            <Toggle
-              label="Also publish to Instagram (as Reels)"
-              description="YouTube-native auto-posts are also published to Instagram as Reels."
-              value={publishToInstagram}
-              onChange={setPublishToInstagram}
-            />
-
-            {/* Separate Reel publish timing (Feature 2) */}
-            {publishToInstagram && (
-              <div className="mt-4 pt-3 border-t border-white/[0.05]">
-                <label className="text-xs font-medium text-white/40 block mb-1.5 uppercase tracking-wider">
-                  Instagram Reel publish times ({reelPublishTimes.length})
-                  <span className="ml-1.5 normal-case tracking-normal text-[10px] text-white/25 font-normal">(global — used when a day has no per-day Reel times)</span>
-                </label>
-                <p className="text-xs text-white/30 mb-3 leading-relaxed">
-                  When set, the Short publishes on its own schedule but its Instagram Reel is
-                  <strong className="text-white/45"> deferred</strong> to the next time below.
-                  Leave empty to cross-post the Reel immediately when the Short goes live.
-                  Per-day Reel times in the schedule below override these for that weekday.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {reelPublishTimes.map((t) => (
-                    <span
-                      key={t}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-mono font-medium border border-white/10 text-white/80"
-                      style={{ background: "rgba(255,255,255,0.04)" }}
-                    >
-                      <Clock size={12} className="text-brand" />
-                      {t}
-                      <button
-                        onClick={() => setReelPublishTimes((prev) => prev.filter((x) => x !== t))}
-                        className="text-white/30 hover:text-red-400 transition-colors"
-                      >
-                        <X size={11} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="time"
-                    value={newReelTime}
-                    onChange={(e) => setNewReelTime(e.target.value)}
-                    className="px-4 py-2.5 rounded-xl text-sm text-white outline-none font-mono"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", colorScheme: "dark" }}
-                  />
-                  <motion.button
-                    whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
-                    onClick={addReelTime}
-                    className="px-4 py-2.5 rounded-xl text-sm font-medium text-white border border-white/[0.12] hover:border-brand/40 hover:text-brand-light transition-all flex items-center gap-1.5"
-                  >
-                    <Plus size={13} /> Add Reel Time
-                  </motion.button>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* AI voiceover + word-by-word captions (beta) */}
@@ -2242,9 +2053,8 @@ function YouTubeTab() {
               <strong className="text-white/45"> “Use global”</strong> fall back to the global
               Posts Per Day, Publishing Days and Publish Times above. Use the
               <strong className="text-emerald-300/70"> ON/OFF</strong> switch to skip a custom day entirely.
-              {publishToInstagram && " Custom days can also set their own Instagram Reel times (one per Short)."}
             </p>
-            <DayScheduleEditor value={dailySchedule} onChange={setDailySchedule} showReelTimes={publishToInstagram} />
+            <DayScheduleEditor value={dailySchedule} onChange={setDailySchedule} />
             <div className="mt-3 rounded-xl px-4 border border-white/[0.07] bg-white/[0.01]">
               <Toggle
                 label="Only post on custom days"
@@ -2341,12 +2151,12 @@ function YouTubeTab() {
         </div>
 
         <div className="rounded-xl p-4 border border-red-500/15 bg-red-500/[0.03]">
-          <p className="text-xs font-semibold text-red-400 mb-2">▶ How YouTube mirroring works</p>
+          <p className="text-xs font-semibold text-red-400 mb-2">▶ How YouTube publishing works</p>
           <ul className="text-xs text-white/40 space-y-1 leading-relaxed">
-            <li>• Runs right after a post publishes to Instagram — same schedule, no extra setup</li>
+            <li>• Shorts are generated from the topics above and published on the schedule below</li>
             <li>• The card image(s) are encoded into a vertical 1080×1920 MP4 with #Shorts</li>
             <li>• Carousels become multi-slide Shorts; single posts become one clip</li>
-            <li>• A failed YouTube upload never blocks the Instagram post</li>
+            <li>• Uploads run independently — a failed upload retries without affecting other posts</li>
           </ul>
         </div>
       </div>
@@ -2699,7 +2509,7 @@ function BrandTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CONTENT TYPES TAB  (12 slots: label / description / enabled / custom prompt)
+// CONTENT TYPES TAB  (11 slots: label / description / enabled / custom prompt)
 // ─────────────────────────────────────────────────────────────────────────────
 const CONTENT_TYPE_SLOTS: { id: string; defaultLabel: string }[] = [
   { id: "EDUCATIONAL",      defaultLabel: "Educational" },
@@ -2712,7 +2522,6 @@ const CONTENT_TYPE_SLOTS: { id: string; defaultLabel: string }[] = [
   { id: "ECG_QUIZ",         defaultLabel: "Knowledge Quiz" },
   { id: "PREVENTIVE",       defaultLabel: "How-To / Tips" },
   { id: "CTA",              defaultLabel: "Call to Action" },
-  { id: "REEL",             defaultLabel: "Reel" },
   { id: "STORY",            defaultLabel: "Story" },
 ];
 

@@ -7,8 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { writePreferences } from "@/lib/preferences";
-import { defaultChainFor, defaultVisionChainFor } from "@/lib/aiModels";
+import { writePreferences, DEFAULTS } from "@/lib/preferences";
 
 export async function POST(request: NextRequest) {
   try {
@@ -65,19 +64,10 @@ export async function POST(request: NextRequest) {
       }
 
       case "reset-ai": {
-        // Reset AI preferences to defaults (per-task provider/model/fallback chains).
-        await writePreferences({
-          ai: {
-            defaultTone:    "Friendly",
-            defaultType:    "Educational",
-            language:       "English",
-            contentChain:   defaultChainFor("groq"),
-            replyChain:     defaultChainFor("groq"),
-            visionChain:    defaultVisionChainFor("gemini"),
-            geminiApiKey:   "",
-            cerebrasApiKey: "",
-          },
-        });
+        // Reset AI preferences to factory defaults — full section replacement so
+        // the per-task chains reset AND both stored API keys (Gemini + Cerebras)
+        // are cleared, not just whichever fields happen to be listed here.
+        await writePreferences({ ai: structuredClone(DEFAULTS.ai) });
         return NextResponse.json({ success: true, data: { action } });
       }
 

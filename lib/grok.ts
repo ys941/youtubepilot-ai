@@ -174,6 +174,17 @@ export class GrokClient {
 
   // --- Core Request Method --------------------------------------------------
 
+  /**
+   * Retry only TRANSIENT failures: 429, 5xx, or network errors (no HTTP response).
+   * Other 4xx (bad request / auth / not found / payload too large) will never
+   * succeed on retry — fail fast instead of burning 3 backoff attempts.
+   */
+  private isRetryable(error: unknown): boolean {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    if (status === undefined) return true; // network error / timeout / empty response
+    return status === 429 || status >= 500;
+  }
+
   private async makeRequest(
     messages: Message[],
     maxTokens = 2000,
@@ -203,6 +214,9 @@ export class GrokClient {
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
+        if (!this.isRetryable(error)) {
+          throw new Error(`Grok API non-retryable error: ${lastError.message}`);
+        }
         if (attempt < this.maxRetries) {
           const delay = this.retryDelay * Math.pow(2, attempt - 1);
           console.warn(
@@ -235,6 +249,9 @@ export class GrokClient {
         return content;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        if (!this.isRetryable(error)) {
+          throw new Error(`Grok API non-retryable error: ${lastError.message}`);
+        }
         if (attempt < this.maxRetries) {
           const delay = this.retryDelay * Math.pow(2, attempt - 1);
           console.warn(

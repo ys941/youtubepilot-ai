@@ -1006,12 +1006,21 @@ export async function publishOverdueScheduled(
   // -- Self-heal: reap stuck "__CLAIMING__" locks ---------------------------------
   // The claim guard below flips PENDING→FAILED("__CLAIMING__:<ts>") to lock an entry
   // while it publishes. If the process restarts mid-publish, the row stays locked
-  // forever and is never retried. Reset any such lock whose CLAIM is older than ~10
-  // min back to PENDING. CRITICAL: we measure the CLAIM age (the <ts> embedded in the
-  // sentinel), NOT the row's createdAt — keying on createdAt instantly reaped the
-  // active claim of any post older than 10 min mid-publish, which re-queued it for a
-  // concurrent sweep and produced DUPLICATE posts.
-  const claimCutoffMs = Date.now() - 10 * 60 * 1000;
+  // forever and is never retried. Reset any such lock whose CLAIM is older than
+  // CLAIM_MAX_AGE back to PENDING. CRITICAL: we measure the CLAIM age (the <ts>
+  // embedded in the sentinel), NOT the row's createdAt — keying on createdAt instantly
+  // reaped the active claim of any post older than the cutoff mid-publish, which
+  // re-queued it for a concurrent sweep and produced DUPLICATE posts.
+  //
+  // Why 45 min (was 10): the age must exceed the WORST-CASE legitimate publish, not
+  // the typical one. A claimed Short first QUEUES behind the process-wide serialized
+  // render lock (every other in-flight video render finishes first), then runs its own
+  // ffmpeg render + TTS + upload — back-to-back builds can legitimately hold a claim
+  // well past 10 min. The old 10-min cutoff reaped such ACTIVE claims, letting a second
+  // sweep re-claim the row and DOUBLE-PUBLISH. 45 min covers a realistic worst-case
+  // queue while still self-healing genuinely dead claims (crashed process) within the hour.
+  const CLAIM_MAX_AGE_MS = 45 * 60 * 1000;
+  const claimCutoffMs = Date.now() - CLAIM_MAX_AGE_MS;
   const stuckClaims = await prisma.scheduledPost.findMany({
     where:  { status: "FAILED", error: { startsWith: "__CLAIMING__" }, ...brandFilter(ctx) },
     select: { id: true, error: true },
@@ -1024,7 +1033,7 @@ export async function publishOverdueScheduled(
   const reapIds = stuckClaims
     .filter((s) => {
       const ts = Number(String(s.error ?? "").split(":")[1] ?? 0);
-      // No embedded timestamp (legacy "__CLAIMING__") OR claimed >10 min ago → reap.
+      // No embedded timestamp (legacy "__CLAIMING__") OR claimed >45 min ago → reap.
       return !ts || ts < claimCutoffMs;
     })
     .map((s) => s.id);
@@ -1034,7 +1043,7 @@ export async function publishOverdueScheduled(
       data:  { status: "PENDING", error: null },
     }).catch(() => ({ count: 0 }));
     if (reaped.count > 0) {
-      console.log(`[Catchup] Claim-lock self-heal: reset ${reaped.count} stuck claim(s) (claimed >10min ago) to PENDING`);
+      console.log(`[Catchup] Claim-lock self-heal: reset ${reaped.count} stuck claim(s) (claimed >${CLAIM_MAX_AGE_MS / 60_000}min ago) to PENDING`);
     }
   }
 
@@ -1426,7 +1435,9 @@ export async function publishOverdueScheduled(
       if (!resolvedMediaUrl) {
         await prisma.scheduledPost.update({
           where: { id: sp.id },
-          data: { status: "FAILED", error: "No media URL and image generation failed. Check that the canvas renderer (sharp/skia-canvas) is installed and working." },
+          // Increment retryCount like every other failure path — without it the
+          // FAILED-retry pass (retryCount < MAX) re-claimed this row on every tick.
+          data: { status: "FAILED", error: "No media URL and image generation failed. Check that the canvas renderer (sharp/skia-canvas) is installed and working.", retryCount: { increment: 1 } },
         });
         failed++;
         continue;
@@ -1646,6 +1657,24 @@ function boundedAdd(set: Set<string>, id: string): void {
   }
 }
 
+// Map twin of boundedAdd — caps a module-level Map so it can't grow unbounded over
+// a long-lived server session. Delete-then-set keeps insertion order tracking
+// recency, so eviction past the cap drops the LEAST-recently-touched entries.
+function boundedMapSet<V>(map: Map<string, V>, key: string, value: V, cap: number): void {
+  if (!key) return;
+  if (map.has(key)) map.delete(key); // re-insert so insertion order = recency
+  map.set(key, value);
+  if (map.size > cap) {
+    const dropCount = map.size - cap;
+    const it = map.keys();
+    for (let i = 0; i < dropCount; i++) {
+      const oldest = it.next().value;
+      if (oldest === undefined) break;
+      map.delete(oldest);
+    }
+  }
+}
+
 // --- Grok auto-reply to YouTube comments --------------------------------------
 // Mirrors fetchMissedComments() but for the channel's recent Shorts/videos.
 // Best-effort: never throws. Returns the number of replies sent.
@@ -1661,6 +1690,18 @@ const YT_COMMENT_CHECK_MS = 2 * 60 * 1000; // throttle floor; actually driven by
 const _ytVideosCacheByBrand = new Map<string, Awaited<ReturnType<typeof getRecentVideos>>>();
 const _ytVideosCacheAtByBrand = new Map<string, number>();
 const YT_VIDEOS_CACHE_MS = 4 * 60 * 1000; // refresh the video list ~every 4 min
+
+// Quota guard for nested-reply fetches. Fetching replies for EVERY thread on EVERY
+// 5-min run (up to 20 threads × 5 videos = 100 comments.list calls/run) burned
+// ~30k units/day — 3× the 10k default daily quota — and killed uploads too.
+// We (a) cap reply fetches per run and (b) remember when each thread's replies were
+// last fetched (bounded Map, oldest-touched evicted) and re-fetch a thread at most
+// every 30 min. Worst case is now ~5 threads.list + 10 replies.list per run ≈ ~4.3k
+// units/day. Trade-off: a reply-to-a-reply may be picked up ~30 min late — fine for a bot.
+const _ytThreadReplyFetchAt = new Map<string, number>(); // threadId → last reply-fetch ms
+const YT_THREAD_REPLY_CACHE_CAP = 2000;
+const YT_THREAD_REPLY_TTL_MS = 30 * 60 * 1000;   // re-check a thread's replies ~every 30 min
+const YT_MAX_REPLY_FETCHES_PER_RUN = 10;         // hard per-run replies.list budget
 
 /**
  * Reply to new YouTube comments (and replies-to-replies) for ONE brand. Runs from
@@ -1710,6 +1751,9 @@ export async function replyToYouTubeComments(ctx: BrandContext, maxVideos = 5): 
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   let replied = 0;
+  // Per-RUN budget for nested-reply fetches across ALL videos (see the quota-guard
+  // comment on _ytThreadReplyFetchAt above).
+  let replyFetchesThisRun = 0;
 
   let videos: Awaited<ReturnType<typeof getRecentVideos>> = [];
   try {
@@ -1759,7 +1803,15 @@ export async function replyToYouTubeComments(ctx: BrandContext, maxVideos = 5): 
           publishedAt:     t.publishedAt,
           isReply:         false,
         });
-        // Fetch nested replies for this thread (cap kept sane via per-video reply cap below).
+        // Fetch nested replies for this thread — but ONLY within the per-run budget
+        // and only if this thread's replies weren't fetched recently (quota guard —
+        // see _ytThreadReplyFetchAt). Skipping just means we still process the
+        // top-level comment now and pick up its nested replies on a later run.
+        if (replyFetchesThisRun >= YT_MAX_REPLY_FETCHES_PER_RUN) continue;
+        const lastFetchedAt = _ytThreadReplyFetchAt.get(t.commentId) ?? 0;
+        if (Date.now() - lastFetchedAt < YT_THREAD_REPLY_TTL_MS) continue;
+        replyFetchesThisRun++;
+        boundedMapSet(_ytThreadReplyFetchAt, t.commentId, Date.now(), YT_THREAD_REPLY_CACHE_CAP);
         const replies = await listCommentReplies(t.commentId, 50, ctx.ytCreds);
         await sleep(400);
         for (const r of replies) {
