@@ -473,7 +473,7 @@ export default function MediaFolderPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2" style={{ fontFamily: "Sora, sans-serif" }}>
-            <FolderOpen size={22} className="text-red-400" />
+            <FolderOpen size={22} className="text-brand" />
             Media Folder
           </h2>
           <p className="text-xs text-white/40 mt-0.5">Upload · AI Caption · AI Hashtags · Schedule to YouTube</p>
@@ -497,7 +497,7 @@ export default function MediaFolderPage() {
               onClick={uploadAll}
               disabled={uploading}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-              style={{ background: "linear-gradient(135deg, #ef4444, #ec4899, #9333ea)" }}
+              style={{ background: "linear-gradient(135deg, rgb(var(--accent-rgb)), rgb(var(--accent-2-rgb)), #9333ea)" }}
             >
               {uploading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               {uploading ? "Uploading..." : `Save ${idleCount} to Library`}
@@ -535,9 +535,9 @@ export default function MediaFolderPage() {
             onDragLeave={onDragLeave}
             onDrop={onDrop}
             onClick={() => inputRef.current?.click()}
-            animate={{ borderColor: dragging ? "rgba(239,68,68,0.6)" : "rgba(255,255,255,0.1)", scale: dragging ? 1.01 : 1 }}
+            animate={{ borderColor: dragging ? "rgb(var(--accent-rgb) / 0.6)" : "rgba(255,255,255,0.1)", scale: dragging ? 1.01 : 1 }}
             className="relative rounded-2xl border-2 border-dashed cursor-pointer transition-colors"
-            style={{ background: dragging ? "rgba(239,68,68,0.05)" : "rgba(17,17,24,0.6)", minHeight: 200 }}
+            style={{ background: dragging ? "rgb(var(--accent-rgb) / 0.05)" : "rgba(17,17,24,0.6)", minHeight: 200 }}
           >
             <input ref={inputRef} type="file" multiple accept="image/*,video/*" className="hidden"
               onChange={(e) => e.target.files && addFiles(e.target.files)} />
@@ -545,9 +545,9 @@ export default function MediaFolderPage() {
               <motion.div
                 animate={{ y: dragging ? -8 : 0 }}
                 className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}
+                style={{ background: "rgb(var(--accent-rgb) / 0.1)", border: "1px solid rgb(var(--accent-rgb) / 0.2)" }}
               >
-                {dragging ? <ImagePlus size={28} className="text-red-400" /> : <Upload size={28} className="text-red-400" />}
+                {dragging ? <ImagePlus size={28} className="text-brand" /> : <Upload size={28} className="text-brand" />}
               </motion.div>
               <div className="text-center">
                 <p className="text-white/70 font-medium text-sm">{dragging ? "Drop files here" : "Drag & drop or click to browse"}</p>
@@ -576,7 +576,7 @@ export default function MediaFolderPage() {
                     onClick={() => setSelected(item.id)}
                     className="relative rounded-xl overflow-hidden cursor-pointer group"
                     style={{
-                      border: selected === item.id ? "2px solid rgba(239,68,68,0.7)" : "2px solid rgba(255,255,255,0.06)",
+                      border: selected === item.id ? "2px solid rgb(var(--accent-rgb) / 0.7)" : "2px solid rgba(255,255,255,0.06)",
                       aspectRatio: "1 / 1",
                     }}
                   >
@@ -616,7 +616,7 @@ export default function MediaFolderPage() {
                     </div>
                     <button onClick={(e) => { e.stopPropagation(); remove(item.id); }}
                       className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-8 h-8 rounded-full bg-red-500/80 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-brand/80 flex items-center justify-center">
                         <Trash2 size={14} className="text-white" />
                       </div>
                     </button>
@@ -687,7 +687,7 @@ export default function MediaFolderPage() {
                         value={selectedItem.title}
                         onChange={(e) => update(selectedItem.id, { title: e.target.value })}
                         placeholder="Post title..."
-                        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-red-500/40 transition-all"
+                        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-brand/40 transition-all"
                       />
                     </div>
 
@@ -703,7 +703,7 @@ export default function MediaFolderPage() {
                             onClick={() => update(selectedItem.id, { postType: t.id })}
                             className={`text-[10px] py-1.5 px-1 rounded-lg border transition-all font-medium ${
                               selectedItem.postType === t.id
-                                ? "bg-red-500/20 border-red-500/30 text-white"
+                                ? "bg-brand/20 border-brand/30 text-white"
                                 : "border-white/[0.06] text-white/40 hover:text-white/70"
                             }`}
                           >
@@ -739,7 +739,7 @@ export default function MediaFolderPage() {
                         onChange={(e) => update(selectedItem.id, { caption: e.target.value })}
                         placeholder="Caption will appear here after AI generation, or type manually..."
                         rows={5}
-                        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-red-500/40 transition-all resize-none"
+                        className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-brand/40 transition-all resize-none"
                       />
                       {selectedItem.caption && (
                         <p className="text-[9px] text-white/25 mt-1 text-right">{selectedItem.caption.length} chars</p>
@@ -794,7 +794,7 @@ export default function MediaFolderPage() {
                             value={selectedItem.hashtags}
                             onChange={(e) => update(selectedItem.id, { hashtags: e.target.value, hashtagList: e.target.value.trim().split(/\s+/).filter(Boolean) })}
                             rows={2}
-                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2 text-xs text-white/50 placeholder-white/20 outline-none focus:border-red-500/30 transition-all resize-none font-mono"
+                            className="w-full bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2 text-xs text-white/50 placeholder-white/20 outline-none focus:border-brand/30 transition-all resize-none font-mono"
                             placeholder="Edit hashtags..."
                           />
                         </div>
@@ -804,7 +804,7 @@ export default function MediaFolderPage() {
                           onChange={(e) => update(selectedItem.id, { hashtags: e.target.value })}
                           placeholder="#yourtopic #yourniche... or click AI Research"
                           rows={2}
-                          className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-red-500/40 transition-all resize-none font-mono"
+                          className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 outline-none focus:border-brand/40 transition-all resize-none font-mono"
                         />
                       )}
                     </div>
@@ -910,7 +910,7 @@ export default function MediaFolderPage() {
                       onClick={publishSelected}
                       disabled={selectedItem.status === "uploading" || publishing}
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
-                      style={{ background: "linear-gradient(135deg, #ef4444, #dc2626)", border: "1px solid rgba(239,68,68,0.5)" }}
+                      style={{ background: "linear-gradient(135deg, rgb(var(--accent-rgb)), rgb(var(--accent-3-rgb)))", border: "1px solid rgb(var(--accent-rgb) / 0.5)" }}
                     >
                       {publishing
                         ? <><Loader2 size={14} className="animate-spin" /> Publishing...</>
@@ -927,7 +927,7 @@ export default function MediaFolderPage() {
                       onClick={() => buildAndUpload(selectedItem)}
                       disabled={selectedItem.status === "uploading"}
                       className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-                      style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.6), rgba(236,72,153,0.6))", border: "1px solid rgba(239,68,68,0.3)" }}
+                      style={{ background: "linear-gradient(135deg, rgb(var(--accent-rgb) / 0.6), rgb(var(--accent-2-rgb) / 0.6))", border: "1px solid rgb(var(--accent-rgb) / 0.3)" }}
                     >
                       {selectedItem.status === "uploading"
                         ? <><Loader2 size={14} className="animate-spin" /> Saving...</>
@@ -987,8 +987,8 @@ export default function MediaFolderPage() {
               { icon: Calendar, text: "Pick a date & time → Schedule to YouTube" },
             ].map(({ icon: Icon, text }, i) => (
               <div key={i} className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                  <Icon size={11} className="text-red-400" />
+                <div className="w-6 h-6 rounded-lg bg-brand/10 flex items-center justify-center flex-shrink-0">
+                  <Icon size={11} className="text-brand" />
                 </div>
                 <p className="text-xs text-white/40">{text}</p>
               </div>
@@ -1055,19 +1055,19 @@ export default function MediaFolderPage() {
               {/* Destination (YouTube-only) */}
               <div
                 className="w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left"
-                style={{ background: "rgba(239,68,68,0.12)", borderColor: "rgba(239,68,68,0.5)" }}
+                style={{ background: "rgb(var(--accent-rgb) / 0.12)", borderColor: "rgb(var(--accent-rgb) / 0.5)" }}
               >
                 <div
                   className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ background: "rgba(239,68,68,0.2)" }}
+                  style={{ background: "rgb(var(--accent-rgb) / 0.2)" }}
                 >
-                  <Youtube size={17} className="text-red-400" />
+                  <Youtube size={17} className="text-brand" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-white">YouTube</p>
                   <p className="text-[10px] text-white/35 truncate">Video → Short · Image → vertical Short</p>
                 </div>
-                <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                <div className="w-5 h-5 rounded-full bg-brand flex items-center justify-center flex-shrink-0">
                   <Check size={11} className="text-white" />
                 </div>
               </div>
@@ -1078,7 +1078,7 @@ export default function MediaFolderPage() {
                 onClick={confirmPlatform}
                 disabled={publishing}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
-                style={{ background: "linear-gradient(135deg, #ef4444, #dc2626)", border: "1px solid rgba(239,68,68,0.5)" }}
+                style={{ background: "linear-gradient(135deg, rgb(var(--accent-rgb)), rgb(var(--accent-3-rgb)))", border: "1px solid rgb(var(--accent-rgb) / 0.5)" }}
               >
                 {publishing
                   ? <><Loader2 size={14} className="animate-spin" /> Working...</>

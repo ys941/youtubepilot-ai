@@ -213,7 +213,7 @@ export default function AnalyticsPage() {
             <div className="grid grid-cols-3 gap-3">
               {[
                 { label: "Subscribers", value: ytStats?.subscribers ?? 0, icon: Users,      bg: "rgba(255,0,0,0.1)",   text: "text-red-500" },
-                { label: "Views",       value: ytStats?.views       ?? 0, icon: Eye,        bg: "rgba(236,72,153,0.1)", text: "text-pink-400" },
+                { label: "Views",       value: ytStats?.views       ?? 0, icon: Eye,        bg: "rgb(var(--accent-2-rgb) / 0.1)", text: "text-brand-light" },
                 { label: "Videos",      value: ytStats?.videos      ?? 0, icon: PlayCircle, bg: "rgba(147,51,234,0.1)", text: "text-purple-400" },
               ].map((t, i) => (
                 <motion.div
@@ -252,7 +252,7 @@ export default function AnalyticsPage() {
                       <YAxis tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => formatNumber(v)} />
                       <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
                       <Bar dataKey="views"    fill="url(#ytViewsGrad)" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="likes"    fill="#ec4899" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="likes"    fill="rgb(var(--accent-2-rgb))" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="comments" fill="#9333ea" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -321,7 +321,7 @@ export default function AnalyticsPage() {
                             <span className={v.views > 0 ? "text-white/70" : "text-white/30"}>{formatNumber(v.views ?? 0)}</span>
                           </td>
                           <td className="px-5 py-3 text-xs tabular-nums">
-                            <span className={v.likes > 0 ? "text-pink-400" : "text-white/30"}>{formatNumber(v.likes ?? 0)}</span>
+                            <span className={v.likes > 0 ? "text-brand-light" : "text-white/30"}>{formatNumber(v.likes ?? 0)}</span>
                           </td>
                           <td className="px-5 py-3 text-xs tabular-nums">
                             <span className={v.comments > 0 ? "text-purple-400" : "text-white/30"}>{formatNumber(v.comments ?? 0)}</span>

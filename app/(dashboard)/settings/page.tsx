@@ -9,10 +9,12 @@ import {
   ShieldCheck, Clock, Calendar,
   Activity, Sparkles, FileText, Plus, X,
   ChevronDown, ChevronUp, RotateCw, LogOut, Youtube,
-  Building2, Layers, Sunrise,
+  Building2, Layers, Sunrise, Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
+import { useTheme } from "next-themes";
+import { THEMES } from "@/lib/themes";
 import {
   useSelectedBrand, withBrand, ALL_BRANDS, type BrandRecord,
 } from "@/components/dashboard/useSelectedBrand";
@@ -31,6 +33,7 @@ type LaneKind = "content" | "vision";
 const tabs = [
   { id: "brand",         label: "Brand",         icon: Sparkles },
   { id: "content-types", label: "Content Types", icon: FileText },
+  { id: "appearance",    label: "Appearance",    icon: Palette },
   { id: "account",       label: "Account",       icon: User },
   { id: "accounts",      label: "Accounts",      icon: Layers },
   { id: "ai",            label: "AI Config",      icon: Cpu },
@@ -65,7 +68,7 @@ function GlassInput({
             readOnly && "opacity-60 cursor-default",
           )}
           style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-          onFocus={(e) => { if (!readOnly) { e.target.style.borderColor = "rgba(239,68,68,0.5)"; e.target.style.boxShadow = "0 0 0 3px rgba(239,68,68,0.08)"; } }}
+          onFocus={(e) => { if (!readOnly) { e.target.style.borderColor = "rgb(var(--accent-rgb) / 0.5)"; e.target.style.boxShadow = "0 0 0 3px rgb(var(--accent-rgb) / 0.08)"; } }}
           onBlur={(e)  => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }}
         />
         {masked && !readOnly && (
@@ -92,7 +95,7 @@ function GlassSelect({ label, value, onChange, options }: {
         className="w-full px-4 py-3 rounded-xl text-sm text-white outline-none transition-all"
         style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
       >
-        {options.map((o) => <option key={o} value={o} style={{ background: "#111118" }}>{o}</option>)}
+        {options.map((o) => <option key={o} value={o} style={{ background: "rgb(var(--surface-rgb))" }}>{o}</option>)}
       </select>
     </div>
   );
@@ -111,8 +114,8 @@ function Toggle({ label, description, value, onChange, disabled = false }: {
         onClick={() => { if (!disabled) onChange(!value); }}
         disabled={disabled}
         aria-disabled={disabled}
-        className={cn("relative w-11 h-6 rounded-full transition-all flex-shrink-0 ml-4", value ? "bg-gradient-to-r from-red-500 to-pink-500" : "bg-white/10", disabled && "cursor-not-allowed")}
-        style={value ? { boxShadow: "0 0 12px rgba(239,68,68,0.4)" } : {}}
+        className={cn("relative w-11 h-6 rounded-full transition-all flex-shrink-0 ml-4", value ? "bg-gradient-to-r from-brand to-brand-light" : "bg-white/10", disabled && "cursor-not-allowed")}
+        style={value ? { boxShadow: "0 0 12px rgb(var(--accent-rgb) / 0.4)" } : {}}
       >
         <motion.div
           animate={{ x: value ? 20 : 2 }}
@@ -133,7 +136,7 @@ function SaveButton({ onClick, loading, label = "Save Changes" }: {
       onClick={onClick}
       disabled={loading}
       className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-      style={{ background: "linear-gradient(135deg, #ef4444, #ec4899)" }}
+      style={{ background: "var(--gradient-accent)" }}
     >
       {loading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
       {loading ? "Saving..." : label}
@@ -301,7 +304,7 @@ function BrandForm({
           onClick={() => { if (!form.label.trim()) { toast.error("Account label is required"); return; } onSubmit(form); }}
           disabled={submitting}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
-          style={{ background: "linear-gradient(135deg, #ef4444, #ec4899)" }}
+          style={{ background: "var(--gradient-accent)" }}
         >
           {submitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
           {mode === "add" ? "Add Account" : "Save Changes"}
@@ -450,7 +453,7 @@ function AccountsTab() {
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
             onClick={() => { setEditId(null); setAdding(true); }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white"
-            style={{ background: "linear-gradient(135deg, #ef4444, #ec4899)" }}
+            style={{ background: "var(--gradient-accent)" }}
           >
             <Plus size={15} /> Add Account
           </motion.button>
@@ -473,18 +476,18 @@ function AccountsTab() {
             <div
               className={cn(
                 "rounded-2xl p-4 border flex items-center gap-4 transition-all",
-                brandId === b.id ? "border-red-500/30" : "border-white/[0.07]",
+                brandId === b.id ? "border-brand/30" : "border-white/[0.07]",
               )}
               style={{ background: "rgba(255,255,255,0.02)" }}
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/30 to-pink-600/20 flex items-center justify-center flex-shrink-0">
-                <Building2 size={18} className="text-red-400" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand/30 to-brand-light/20 flex items-center justify-center flex-shrink-0">
+                <Building2 size={18} className="text-brand" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-white truncate">{b.label}</p>
                   {b.isPrimary && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400 border border-red-500/20">Primary</span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-brand/15 text-brand border border-brand/20">Primary</span>
                   )}
                   {brandId === b.id && (
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">Selected</span>
@@ -825,7 +828,7 @@ function AiTab() {
                 onClick={() => setDefaultTone(t)}
                 className={cn("px-3.5 py-2 rounded-full text-xs font-semibold border transition-all",
                   defaultTone === t
-                    ? "bg-gradient-to-r from-red-500/20 to-pink-500/10 text-red-300 border-red-500/30"
+                    ? "bg-gradient-to-r from-brand/20 to-brand-light/10 text-brand-light border-brand/30"
                     : "border-white/[0.08] text-white/40 hover:text-white/70 hover:border-white/20"
                 )}
               >
@@ -1066,7 +1069,7 @@ function PromptsTab() {
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
                 selected === pt.id
-                  ? "bg-gradient-to-r from-red-500/20 to-pink-500/10 text-white border-red-500/30"
+                  ? "bg-gradient-to-r from-brand/20 to-brand-light/10 text-white border-brand/30"
                   : "border-white/[0.08] text-white/40 hover:text-white/70 hover:border-white/20",
               )}
             >
@@ -1121,7 +1124,7 @@ function PromptsTab() {
             placeholder={`System default for ${POST_TYPES_META.find((p) => p.id === selected)?.label}:\n\n${defaultHint}\n\nType your custom instructions here to override...`}
             className="w-full text-sm text-white/80 leading-relaxed resize-y outline-none rounded-lg px-4 py-3 placeholder-white/20"
             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", minHeight: 200, fontFamily: "monospace" }}
-            onFocus={(e) => { e.target.style.borderColor = "rgba(239,68,68,0.4)"; }}
+            onFocus={(e) => { e.target.style.borderColor = "rgb(var(--accent-rgb) / 0.4)"; }}
             onBlur={(e)  => { e.target.style.borderColor = "rgba(255,255,255,0.06)"; }}
           />
           <p className="text-[11px] text-white/25 mt-2 leading-relaxed">
@@ -1273,7 +1276,7 @@ function DayScheduleRow({
   return (
     <div className={cn(
       "rounded-xl p-3 border transition-all",
-      active ? "border-red-500/25 bg-red-500/[0.03]" : "border-white/[0.06] bg-white/[0.01]"
+      active ? "border-brand/25 bg-brand/[0.03]" : "border-white/[0.06] bg-white/[0.01]"
     )}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -1281,7 +1284,7 @@ function DayScheduleRow({
             onClick={onToggleActive}
             className={cn(
               "px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all",
-              active ? "border-red-500/40 text-red-300 bg-red-500/10"
+              active ? "border-brand/40 text-brand-light bg-brand/10"
                      : "border-white/[0.1] text-white/40 hover:text-white/70"
             )}
           >
@@ -1319,7 +1322,7 @@ function DayScheduleRow({
                   className={cn(
                     "w-9 h-9 rounded-lg text-xs font-bold border transition-all",
                     (entry?.postsPerDay ?? 1) === n
-                      ? "bg-gradient-to-br from-red-500/30 to-pink-500/20 text-white border-red-500/40"
+                      ? "bg-gradient-to-br from-brand/30 to-brand-light/20 text-white border-brand/40"
                       : "border-white/[0.08] text-white/40 hover:text-white hover:border-white/20"
                   )}
                 >
@@ -1335,7 +1338,7 @@ function DayScheduleRow({
             <div className="flex flex-wrap gap-2 mb-2">
               {(entry?.times ?? []).map((t) => (
                 <span key={t} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono border border-white/10 text-white/80" style={{ background: "rgba(255,255,255,0.04)" }}>
-                  <Clock size={11} className="text-red-400" />
+                  <Clock size={11} className="text-brand" />
                   {t}
                   <button onClick={() => onRemoveTime(t)} className="text-white/30 hover:text-red-400 transition-colors">
                     <X size={10} />
@@ -1353,7 +1356,7 @@ function DayScheduleRow({
               />
               <button
                 onClick={() => onAddTime(newTime)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white border border-white/[0.12] hover:border-red-500/40 hover:text-red-300 transition-all flex items-center gap-1"
+                className="px-3 py-1.5 rounded-lg text-xs font-medium text-white border border-white/[0.12] hover:border-brand/40 hover:text-brand-light transition-all flex items-center gap-1"
               >
                 <Plus size={12} /> Add
               </button>
@@ -1364,7 +1367,7 @@ function DayScheduleRow({
               "Also publish to Instagram (as Reels)" is ON. One Reel slot per Short. */}
           {showReelTimes && (
             <div className="pt-1">
-              <label className="text-[11px] font-medium text-pink-300/60 block mb-1 uppercase tracking-wider">
+              <label className="text-[11px] font-medium text-brand-light/60 block mb-1 uppercase tracking-wider">
                 Instagram Reel times ({entry?.reelTimes?.length ?? 0})
               </label>
               <p className="text-[10px] text-white/30 mb-2 leading-relaxed">
@@ -1374,8 +1377,8 @@ function DayScheduleRow({
               </p>
               <div className="flex flex-wrap gap-2 mb-2">
                 {(entry?.reelTimes ?? []).map((t, i) => (
-                  <span key={`${t}-${i}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono border border-pink-500/20 text-white/80" style={{ background: "rgba(236,72,153,0.06)" }}>
-                    <Clock size={11} className="text-pink-400" />
+                  <span key={`${t}-${i}`} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono border border-brand-light/20 text-white/80" style={{ background: "rgb(var(--accent-2-rgb) / 0.06)" }}>
+                    <Clock size={11} className="text-brand-light" />
                     {t}
                     <button onClick={() => onRemoveReelTime(t)} className="text-white/30 hover:text-pink-400 transition-colors">
                       <X size={10} />
@@ -1393,7 +1396,7 @@ function DayScheduleRow({
                 />
                 <button
                   onClick={() => onAddReelTime(newReelTime)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white border border-white/[0.12] hover:border-pink-500/40 hover:text-pink-300 transition-all flex items-center gap-1"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white border border-white/[0.12] hover:border-brand-light/40 hover:text-brand-light transition-all flex items-center gap-1"
                 >
                   <Plus size={12} /> Add Reel
                 </button>
@@ -1402,6 +1405,57 @@ function DayScheduleRow({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APPEARANCE TAB — pick one of 10 app-wide themes (persists via next-themes)
+// ─────────────────────────────────────────────────────────────────────────────
+function AppearanceTab() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const active = mounted ? (theme ?? "crimson") : "crimson";
+
+  return (
+    <div className="space-y-5">
+      <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Appearance</h3>
+      <p className="text-xs text-white/40 -mt-2">Pick a theme — it applies across the whole app instantly and is remembered on this device.</p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {THEMES.map((t) => {
+          const selected = active === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id)}
+              className={cn(
+                "relative rounded-xl p-3 text-left border transition-all",
+                selected ? "border-white/40 ring-1 ring-white/30" : "border-white/[0.08] hover:border-white/20"
+              )}
+              style={{ background: t.bg }}
+            >
+              <div className="flex items-center gap-1.5 mb-2">
+                {t.swatch.map((c, i) => (
+                  <span key={i} className="h-5 w-5 rounded-full" style={{ background: c, boxShadow: i === 0 ? `0 0 10px ${c}88` : undefined }} />
+                ))}
+              </div>
+              <div className="text-xs font-semibold text-white/90">{t.label}</div>
+              {selected && <span className="absolute top-2 right-2 text-[10px] text-white/80">✓</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="rounded-xl p-4 border border-white/[0.06]" style={{ background: "rgb(var(--surface-rgb))" }}>
+        <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-2">Live preview</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="px-3 py-1.5 rounded-full text-xs font-semibold text-white" style={{ background: "var(--gradient-accent)" }}>Accent button</span>
+          <span className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ background: "rgb(var(--accent-rgb) / 0.15)", color: "rgb(var(--accent-2-rgb))", border: "1px solid rgb(var(--accent-rgb) / 0.3)" }}>Badge</span>
+          <span className="text-sm font-bold" style={{ background: "var(--gradient-accent)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>Gradient text</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1878,7 +1932,7 @@ function YouTubeTab() {
       {/* Master enable */}
       <div className={cn(
         "rounded-xl p-4 border transition-all",
-        enabled ? "border-red-500/30 bg-red-500/5" : "border-white/[0.07] bg-white/[0.01]"
+        enabled ? "border-brand/30 bg-brand/5" : "border-white/[0.07] bg-white/[0.01]"
       )}>
         <Toggle
           label="Enable YouTube auto-poster & comment replies"
@@ -1903,7 +1957,7 @@ function YouTubeTab() {
                   "px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all",
                   privacy === p ? "text-white" : "text-white/40 bg-white/[0.03] hover:bg-white/[0.06]"
                 )}
-                style={privacy === p ? { background: "linear-gradient(135deg, #ef4444, #ec4899)" } : {}}
+                style={privacy === p ? { background: "var(--gradient-accent)" } : {}}
               >
                 {p}
               </button>
@@ -1924,7 +1978,7 @@ function YouTubeTab() {
                   "px-4 py-2 rounded-xl text-sm font-semibold border transition-all",
                   targetShortSeconds === n ? "text-white" : "text-white/40 bg-white/[0.03] border-white/[0.08] hover:text-white hover:border-white/20"
                 )}
-                style={targetShortSeconds === n ? { background: "linear-gradient(135deg, #ef4444, #ec4899)", border: "1px solid transparent" } : {}}
+                style={targetShortSeconds === n ? { background: "var(--gradient-accent)", border: "1px solid transparent" } : {}}
               >
                 {n}s
               </motion.button>
@@ -1947,7 +2001,7 @@ function YouTubeTab() {
                 className={cn(
                   "w-12 h-12 rounded-xl text-sm font-bold border transition-all",
                   postsPerDay === n
-                    ? "bg-gradient-to-br from-red-500/30 to-pink-500/20 text-white border-red-500/40"
+                    ? "bg-gradient-to-br from-brand/30 to-brand-light/20 text-white border-brand/40"
                     : "border-white/[0.08] text-white/40 hover:text-white hover:border-white/20"
                 )}
               >
@@ -2026,7 +2080,7 @@ function YouTubeTab() {
                       className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-mono font-medium border border-white/10 text-white/80"
                       style={{ background: "rgba(255,255,255,0.04)" }}
                     >
-                      <Clock size={12} className="text-red-400" />
+                      <Clock size={12} className="text-brand" />
                       {t}
                       <button
                         onClick={() => setReelPublishTimes((prev) => prev.filter((x) => x !== t))}
@@ -2048,7 +2102,7 @@ function YouTubeTab() {
                   <motion.button
                     whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
                     onClick={addReelTime}
-                    className="px-4 py-2.5 rounded-xl text-sm font-medium text-white border border-white/[0.12] hover:border-red-500/40 hover:text-red-300 transition-all flex items-center gap-1.5"
+                    className="px-4 py-2.5 rounded-xl text-sm font-medium text-white border border-white/[0.12] hover:border-brand/40 hover:text-brand-light transition-all flex items-center gap-1.5"
                   >
                     <Plus size={13} /> Add Reel Time
                   </motion.button>
@@ -2076,15 +2130,15 @@ function YouTubeTab() {
                   className="w-full px-4 py-3 rounded-xl text-sm text-white outline-none transition-all"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                 >
-                  <optgroup label="Male" style={{ background: "#111118" }}>
-                    <option value="daniel" style={{ background: "#111118" }}>Daniel — warm, natural (recommended)</option>
-                    <option value="austin" style={{ background: "#111118" }}>Austin — bright, energetic</option>
-                    <option value="troy"   style={{ background: "#111118" }}>Troy — deep, authoritative</option>
+                  <optgroup label="Male" style={{ background: "rgb(var(--surface-rgb))" }}>
+                    <option value="daniel" style={{ background: "rgb(var(--surface-rgb))" }}>Daniel — warm, natural (recommended)</option>
+                    <option value="austin" style={{ background: "rgb(var(--surface-rgb))" }}>Austin — bright, energetic</option>
+                    <option value="troy"   style={{ background: "rgb(var(--surface-rgb))" }}>Troy — deep, authoritative</option>
                   </optgroup>
-                  <optgroup label="Female" style={{ background: "#111118" }}>
-                    <option value="autumn" style={{ background: "#111118" }}>Autumn — warm, friendly</option>
-                    <option value="diana"  style={{ background: "#111118" }}>Diana — calm, clear</option>
-                    <option value="hannah" style={{ background: "#111118" }}>Hannah — soft, youthful</option>
+                  <optgroup label="Female" style={{ background: "rgb(var(--surface-rgb))" }}>
+                    <option value="autumn" style={{ background: "rgb(var(--surface-rgb))" }}>Autumn — warm, friendly</option>
+                    <option value="diana"  style={{ background: "rgb(var(--surface-rgb))" }}>Diana — calm, clear</option>
+                    <option value="hannah" style={{ background: "rgb(var(--surface-rgb))" }}>Hannah — soft, youthful</option>
                   </optgroup>
                 </select>
                 <p className="text-[11px] text-white/35 mt-2 leading-relaxed">
@@ -2126,7 +2180,7 @@ function YouTubeTab() {
                   className={cn(
                     "w-12 h-12 rounded-xl text-xs font-bold border transition-all",
                     scheduleDays.includes(idx)
-                      ? "bg-gradient-to-br from-red-500/30 to-pink-500/20 text-white border-red-500/40"
+                      ? "bg-gradient-to-br from-brand/30 to-brand-light/20 text-white border-brand/40"
                       : "border-white/[0.08] text-white/35 hover:text-white hover:border-white/20"
                   )}
                 >
@@ -2149,7 +2203,7 @@ function YouTubeTab() {
                   className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-mono font-medium border border-white/10 text-white/80"
                   style={{ background: "rgba(255,255,255,0.04)" }}
                 >
-                  <Clock size={12} className="text-red-400" />
+                  <Clock size={12} className="text-brand" />
                   {t}
                   <button
                     onClick={() => setPostTimes((prev) => prev.filter((x) => x !== t))}
@@ -2171,7 +2225,7 @@ function YouTubeTab() {
               <motion.button
                 whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
                 onClick={addTime}
-                className="px-4 py-2.5 rounded-xl text-sm font-medium text-white border border-white/[0.12] hover:border-red-500/40 hover:text-red-300 transition-all flex items-center gap-1.5"
+                className="px-4 py-2.5 rounded-xl text-sm font-medium text-white border border-white/[0.12] hover:border-brand/40 hover:text-brand-light transition-all flex items-center gap-1.5"
               >
                 <Plus size={13} /> Add Time
               </motion.button>
@@ -2216,7 +2270,7 @@ function YouTubeTab() {
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
                   postTypes.includes(pt.id)
-                    ? "bg-gradient-to-r from-red-500/20 to-pink-500/10 text-white border-red-500/30"
+                    ? "bg-gradient-to-r from-brand/20 to-brand-light/10 text-white border-brand/30"
                     : "border-white/[0.08] text-white/35 hover:text-white/70 hover:border-white/20"
                 )}
               >
@@ -2257,13 +2311,13 @@ function YouTubeTab() {
               placeholder="e.g. Tutorials, Industry insights..."
               className="flex-1 px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 outline-none"
               style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
-              onFocus={(e) => { e.target.style.borderColor = "rgba(239,68,68,0.5)"; }}
+              onFocus={(e) => { e.target.style.borderColor = "rgb(var(--accent-rgb) / 0.5)"; }}
               onBlur={(e)  => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; }}
             />
             <motion.button
               whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
               onClick={addTopic}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium text-white border border-white/[0.12] hover:border-red-500/40 hover:text-red-300 transition-all flex items-center gap-1.5"
+              className="px-4 py-2.5 rounded-xl text-sm font-medium text-white border border-white/[0.12] hover:border-brand/40 hover:text-brand-light transition-all flex items-center gap-1.5"
             >
               <Plus size={13} /> Add
             </motion.button>
@@ -2329,7 +2383,7 @@ function ChipEditor({
     onChange([...items, v]);
     setDraft("");
   };
-  const focusColor = accent === "fuchsia" ? "rgba(192,38,211,0.5)" : "rgba(239,68,68,0.5)";
+  const focusColor = accent === "fuchsia" ? "rgba(192,38,211,0.5)" : "rgb(var(--accent-rgb) / 0.5)";
   return (
     <div>
       <label className="text-xs font-medium text-white/40 block mb-2 uppercase tracking-wider">
@@ -2366,7 +2420,7 @@ function ChipEditor({
         <motion.button
           whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
           onClick={add}
-          className="px-4 py-2.5 rounded-xl text-sm font-medium text-white border border-white/[0.12] hover:border-red-500/40 hover:text-red-300 transition-all flex items-center gap-1.5"
+          className="px-4 py-2.5 rounded-xl text-sm font-medium text-white border border-white/[0.12] hover:border-brand/40 hover:text-brand-light transition-all flex items-center gap-1.5"
         >
           <Plus size={13} /> Add
         </motion.button>
@@ -2769,9 +2823,9 @@ function ContentTypesTab() {
                   onClick={() => patch(slot.id, { enabled: !t.enabled })}
                   className={cn(
                     "relative w-11 h-6 rounded-full transition-all flex-shrink-0",
-                    t.enabled ? "bg-gradient-to-r from-red-500 to-pink-500" : "bg-white/10",
+                    t.enabled ? "bg-gradient-to-r from-brand to-brand-light" : "bg-white/10",
                   )}
-                  style={t.enabled ? { boxShadow: "0 0 12px rgba(239,68,68,0.4)" } : {}}
+                  style={t.enabled ? { boxShadow: "0 0 12px rgb(var(--accent-rgb) / 0.4)" } : {}}
                   title={t.enabled ? "Enabled" : "Disabled"}
                 >
                   <motion.div
@@ -2870,7 +2924,7 @@ export default function SettingsPage() {
                 activeTab === tab.id
                   ? tab.id === "danger"
                     ? "bg-red-500/20 text-red-300 border border-red-500/20"
-                    : "bg-gradient-to-r from-red-500/20 to-pink-500/10 text-white border border-red-500/20"
+                    : "bg-gradient-to-r from-brand/20 to-brand-light/10 text-white border border-red-500/20"
                   : tab.id === "danger"
                   ? "text-red-400/60 hover:text-red-400 hover:bg-red-500/5"
                   : "text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
@@ -2912,7 +2966,7 @@ export default function SettingsPage() {
             {/* Brand-scope banner — shows which account these settings apply to */}
             {brands.length > 1 && BRAND_SCOPED_TABS.has(activeTab) && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/[0.06] bg-white/[0.02] text-xs text-white/50">
-                <Layers size={13} className="text-red-400" />
+                <Layers size={13} className="text-brand" />
                 These settings apply to:{" "}
                 <span className="text-white/80 font-medium">
                   {isAll ? "Primary (switch off ‘All accounts’ to edit a specific one)" : selectedBrand?.label ?? "Primary"}
@@ -2922,6 +2976,7 @@ export default function SettingsPage() {
 
             {activeTab === "brand"         && <BrandTab />}
             {activeTab === "content-types" && <ContentTypesTab />}
+            {activeTab === "appearance"    && <AppearanceTab />}
             {activeTab === "account"       && <AccountTab />}
             {activeTab === "accounts"      && <AccountsTab />}
             {activeTab === "ai"            && <AiTab />}
