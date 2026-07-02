@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { writePreferences } from "@/lib/preferences";
+import { defaultChainFor, defaultVisionChainFor } from "@/lib/aiModels";
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,14 +65,17 @@ export async function POST(request: NextRequest) {
       }
 
       case "reset-ai": {
-        // Reset AI preferences to defaults
+        // Reset AI preferences to defaults (per-task provider/model/fallback chains).
         await writePreferences({
           ai: {
-            defaultTone:  "Professional",
-            defaultType:  "Educational",
-            language:     "English",
-            aiProvider:   "grok",
-            geminiApiKey: "",
+            defaultTone:    "Friendly",
+            defaultType:    "Educational",
+            language:       "English",
+            contentChain:   defaultChainFor("groq"),
+            replyChain:     defaultChainFor("groq"),
+            visionChain:    defaultVisionChainFor("gemini"),
+            geminiApiKey:   "",
+            cerebrasApiKey: "",
           },
         });
         return NextResponse.json({ success: true, data: { action } });

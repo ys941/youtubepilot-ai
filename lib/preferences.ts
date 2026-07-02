@@ -8,15 +8,30 @@
 
 import { prisma } from "@/lib/prisma";
 import { BrandConfig, NEUTRAL_DEFAULT, mergeBrand } from "@/lib/brandConfig";
+import { defaultChainFor, defaultVisionChainFor } from "@/lib/aiModels";
+
+/** One task lane's provider + model + ordered fallback chain. */
+export interface AiChain { provider: string; model: string; fallbacks: Array<{ provider: string; model: string }>; }
 
 export interface AiPreferences {
   defaultTone: string;
   defaultType: string;
   language:    string;
-  /** "grok" | "gemini" — which AI provider to use for all generation tasks */
-  aiProvider:  string;
+  /** PER-TASK chains: each task lane has its own provider+model+fallback chain. */
+  contentChain?: AiChain;   // post/caption/hook/script generation
+  replyChain?:   AiChain;   // YouTube comment auto-replies
+  visionChain?:  AiChain;   // image/video analysis (gemini/groq only)
   /** Gemini API key (stored in DB so user can update from Settings UI) */
   geminiApiKey: string;
+  /** Cerebras API key (stored in DB; env CEREBRAS_API_KEY takes priority) */
+  cerebrasApiKey?: string;
+  // ── Legacy (pre per-task) fields — still read for back-compat migration ──
+  aiProvider?:  string;
+  aiModel?:     string;
+  aiFallbacks?: Array<{ provider: string; model: string }>;
+  aiVisionProvider?: string;
+  aiVisionModel?:    string;
+  aiVisionFallbacks?: Array<{ provider: string; model: string }>;
 }
 
 export interface NotificationPreferences {
@@ -201,8 +216,11 @@ export const DEFAULTS: AllPreferences = {
     defaultTone:  "Friendly",
     defaultType:  "Educational",
     language:     "English",
-    aiProvider:   "grok",   // "grok" | "gemini"
-    geminiApiKey: "",
+    contentChain: defaultChainFor("groq"),
+    replyChain:   defaultChainFor("groq"),
+    visionChain:  defaultVisionChainFor("gemini"),
+    geminiApiKey:   "",
+    cerebrasApiKey: "",
   },
   notifications: {
     emailPublish:      true,

@@ -418,6 +418,31 @@ export class GeminiClient {
     return lastRaw;
   }
 
+  /**
+   * Raw vision call against ONE explicit Gemini model (no chain walk) — used by
+   * the ai-factory's configurable VISION chain so the user's per-step model choice
+   * is honoured; the outer chain supplies fallback. Supports images AND video.
+   * Returns the raw model text (caller parses JSON).
+   */
+  async visionRaw(
+    model: string,
+    data: string,      // raw base64, no data: prefix
+    mimeType: string,  // e.g. "image/jpeg" or "video/mp4"
+    prompt: string,
+    systemInstruction = "You are an expert content creator analysing images and videos. Return only valid JSON.",
+    maxTokens = 1000,
+  ): Promise<string> {
+    const m = this.genAI.getGenerativeModel({
+      model,
+      systemInstruction,
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 },
+    });
+    const textPart:  Part = { text: prompt };
+    const mediaPart: Part = { inlineData: { data, mimeType: mimeType as any } };
+    const result = await m.generateContent([textPart, mediaPart]);
+    return result.response.text();
+  }
+
   // ── Vision: analyse an image or video URL ─────────────────────────────────
 
   async analyzeMedia(

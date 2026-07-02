@@ -112,21 +112,21 @@ export async function generateAICommentReply(
   username: string,
   postContext: PostCommentContext,
   brand?: BrandConfig | null,
+  brandId?: string | null,
 ): Promise<string | null> {
   try {
-    // Comment replies use GROK (llama-3.3-70b) directly — NOT the Gemini chain.
-    // Gemini's flash models are thinking models that rate-limit and fall through to
-    // Gemma (which dumps reasoning junk), producing truncated/poor replies. Grok 70B
-    // is a clean, non-thinking model with sophisticated quiz handling → reliably
-    // complete, accurate, human comment replies (same proven engine as DMs).
-    const grok = getGrokClient();
-    const reply = await grok.generateCommentReply(commentText, username, postContext);
+    // Comment replies use the configured REPLY task chain (Settings → AI Config →
+    // Reply): the operator picks the primary provider/model + ordered fallbacks
+    // that answer YouTube comments. getAIClient("reply") returns the primary
+    // client for that lane (falling down the chain when a key is missing).
+    const ai = await getAIClient("reply", brandId ?? null);
+    const reply = await ai.generateCommentReply(commentText, username, postContext);
     const clean = (reply ?? "").trim();
     if (clean) {
-      console.log(`[Catchup] Comment reply generated via Grok (${clean.length} chars)`);
+      console.log(`[Catchup] Comment reply generated via reply chain (${clean.length} chars)`);
       return clean;
     }
-    throw new Error("empty Grok comment reply");
+    throw new Error("empty AI comment reply");
   } catch (err) {
     console.warn("[Catchup] AI comment reply unavailable -- using fallback reply:", String(err));
     // Return a varied fallback so the comment still gets acknowledged
@@ -1810,6 +1810,7 @@ export async function replyToYouTubeComments(ctx: BrandContext, maxVideos = 5): 
           c.author ?? "friend",
           { postType: "YOUTUBE", postTitle: video.title },
           ctx.prefs.brand,
+          ctx.brandId,
         );
         await sleep(800);
         if (!reply) {
@@ -2630,7 +2631,7 @@ export async function scheduleAutoStory(force = false, ctxArg?: BrandContext): P
     // Use generateContentJSON so it walks the full model chain until a model returns
     // VALID JSON (instead of falling back to a generic hardcoded story on the first
     // model that "thinks out loud" or truncates). Larger token budget so JSON completes.
-    const ai  = await getAIClient(ctx.brandId);
+    const ai  = await getAIClient("content", ctx.brandId);
     const raw = await ai.generateContentJSON(
       `Generate content for an Instagram Story card for ${atHandle(brand)} (a ${brand.niche} account).
 
@@ -3270,7 +3271,7 @@ export async function runAutoGeneratePosts(ctxArg?: BrandContext): Promise<Gener
       return [];
     }
 
-    const ai    = await getAIClient(ctx.brandId);
+    const ai    = await getAIClient("content", ctx.brandId);
     const brand = ctx.prefs.brand;
     const tz  = cfg.timezone || "Asia/Kolkata";
 
@@ -3774,7 +3775,7 @@ export async function runAutoGenerateYouTube(ctxArg?: BrandContext): Promise<Gen
       return [];
     }
 
-    const ai = await getAIClient(ctx.brandId);
+    const ai = await getAIClient("content", ctx.brandId);
     const brand = ctx.prefs.brand;
     console.log(`[YT-AutoGen] Generating ${toGenerate} YouTube Short post(s) for today (${todayIST})`);
 

@@ -136,14 +136,23 @@ export class GrokClient {
   private maxRetries = 3;
   private retryDelay = 1000;
 
-  constructor(apiKey: string) {
+  /**
+   * @param apiKey  provider API key
+   * @param opts    optional overrides so this same OpenAI-compatible client can
+   *                drive Cerebras (or any OpenAI-style endpoint), not just Groq:
+   *                - baseURL: e.g. "https://api.cerebras.ai/v1"
+   *                - model / fastModel: the specific model id to send
+   */
+  constructor(apiKey: string, opts?: { baseURL?: string; model?: string; fastModel?: string }) {
     if (!apiKey) {
-      throw new Error("Groq API key is required");
+      throw new Error("AI provider API key is required");
     }
+    if (opts?.model)     this.model     = opts.model;
+    if (opts?.fastModel) this.fastModel = opts.fastModel;
 
     this.client = axios.create({
-      // Groq is OpenAI-compatible -- same request format, different base URL
-      baseURL: process.env.GROK_API_URL || "https://api.groq.com/openai/v1",
+      // Groq AND Cerebras are OpenAI-compatible -- same request format, different base URL
+      baseURL: opts?.baseURL || process.env.GROK_API_URL || "https://api.groq.com/openai/v1",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
@@ -316,7 +325,39 @@ export class GrokClient {
   }
 
   /**
-   * Generate a complete Instagram post for the configured brand/niche.
+   * Vision (image understanding) via the OpenAI-compatible endpoint. Sends the
+   * image inline as a base64 data URL. Groq llama-4 models support this; Cerebras
+   * text models do not (the vision dispatcher never routes to Cerebras). Returns
+   * the raw model text (caller parses JSON).
+   */
+  async visionRaw(
+    model: string,
+    data: string,      // raw base64, no data: prefix
+    mimeType: string,  // e.g. "image/jpeg"
+    prompt: string,
+    systemPrompt = CARDIOLOGY_SYSTEM_PROMPT,
+    maxTokens = 1000,
+  ): Promise<string> {
+    const resp = await this.client.post<GrokResponse>("/chat/completions", {
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${data}` } },
+          ],
+        },
+      ],
+      max_tokens: maxTokens,
+      temperature: 0.6,
+    });
+    return resp.data?.choices?.[0]?.message?.content ?? "";
+  }
+
+  /**
+   * Generate a complete post for the configured brand/niche.
    */
   async generateCardioPost(
     type: PostType,
