@@ -577,8 +577,12 @@ export async function renderPostCardBuffers(post: YtPostInput, theme: Theme): Pr
   const { generateShortSlidesVertical } = await import("@/lib/slideImageGenerator");
 
   // Carousel → render each authored slide as a FULL-FRAME vertical themed slide so
-  // it fills the Short (one key point per card, big readable text).
-  const slides = Array.isArray(post.carouselSlides) ? post.carouselSlides : null;
+  // it fills the Short (one key point per card, big readable text). Drop slides with
+  // no headline AND no body so the card count matches buildContentSlideSpecs() exactly
+  // — that keeps the per-card voiceover 1:1 with the visible cards (#10 sync).
+  const slides = Array.isArray(post.carouselSlides)
+    ? post.carouselSlides.filter((s) => ((s?.headline ?? "").trim() || (s?.body ?? "").trim()))
+    : null;
   if (post.type === "CAROUSEL" && slides && slides.length >= 2) {
     const renumbered = slides.map((s, i) => ({ slide: i + 1, headline: s.headline, body: s.body }));
     const buffers = await generateShortSlidesVertical(renumbered, theme);
@@ -990,7 +994,16 @@ export async function buildShortForPost(
   if (yt.voiceover && isTtsConfigured()) {
     const niche = (brand.niche ?? "").trim() || "this";
     const strip = (s: string) => (s || "").replace(/[*_#`>~]/g, "").replace(/\s+/g, " ").trim();
-    const ctaText = `Follow for more ${niche} tips.`;
+    // #4 engagement loop: the SPOKEN outro is a SUBSCRIBE ask (this is YouTube), varied
+    // per-Short so it never sounds templated across the feed.
+    const ctaPool = [
+      "Subscribe for a new tip every day.",
+      "Hit subscribe — one tip a day.",
+      "Subscribe so you never miss a tip.",
+      `Follow the channel for daily ${niche} shorts.`,
+    ];
+    const ctaIdx = Math.abs([...(post.id ?? post.title ?? "x")].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % ctaPool.length;
+    const ctaText = ctaPool[ctaIdx];
     const ttsVoice = yt.voiceoverVoice || undefined;
     let synced = false;
 
