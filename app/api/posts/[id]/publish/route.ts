@@ -38,6 +38,7 @@ async function publishYouTubeShortForPost(post: {
     {
       privacy:           yt.privacy,
       secondsPerImage:   yt.secondsPerImage,
+      targetShortSeconds: yt.targetShortSeconds,
       descriptionSuffix: yt.descriptionSuffix,
     },
     // Omit creds for the primary brand → env/primary path (exact legacy behaviour).

@@ -15,6 +15,7 @@ import { synthesizeSpeech, isTtsConfigured } from "@/lib/tts";
 import { wordTimestamps, buildAssCaptions, type CaptionWord } from "@/lib/captions";
 import { uploadShort, setVideoThumbnail, type YouTubeCreds } from "@/lib/youtube";
 import { renderHookCard, renderOutroCard, THEMES, type Theme } from "@/lib/hookCard";
+import { shortPlan } from "@/lib/shortLength";
 import { buildBeautifulCaption } from "@/lib/captionBuilder";
 import { selectMusicForCard } from "@/lib/music";
 import { getBrand, type YouTubeSettings } from "@/lib/preferences";
@@ -308,10 +309,13 @@ const _SHORT_HOOK_CACHE_MAX = 200;
  * craft a scroll-stopping line tailored to this exact post — the kind of line
  * that makes a viewer STOP and watch.
  *
- * Constraints baked into the prompt: ≤ ~10 words, no hashtags, no emojis, no
- * quotes. On ANY failure (no provider, network/parse error, empty/too-long
- * result) it falls back deterministically to `post.hook`, or a punchy derivation
- * of `post.title`. Cached by post.id (bounded, oldest-evicted).
+ * Constraints baked into the prompt/validator: a punchy 4–9 word, FIRST-WORD-STRONG
+ * line (leads with the most surprising/concrete word; weak wind-up openers like
+ * "Did you know"/"There is" are rejected), no hashtags, no emojis, no quotes — so the
+ * hook lands in the ~1.5–2s the cover flashes on screen. On ANY failure (no provider,
+ * network/parse error, empty/too-long/weak-opener result) it falls back
+ * deterministically to `post.hook`, or a punchy derivation of `post.title`. Cached by
+ * post.id (bounded, oldest-evicted).
  */
 export async function buildShortHook(post: YtPostInput, brand?: BrandConfig): Promise<string> {
   const niche = ((brand ?? await getBrand()).niche ?? "").trim() || "this topic";
@@ -349,21 +353,21 @@ SOURCE CONTENT:
 ${(source ?? "").slice(0, 600)}
 
 The hook MUST:
-- WIN THE FIRST SECOND: viewers decide in ~1s, so put the most surprising/concrete word in the FIRST 3 words. Lead with ONE of: a direct QUESTION ("Why does your phone die so fast?"), a concrete everyday specific ("The morning habit that…"), or a count of list items ("3 signs…") — ONLY if that count is truthful. Never open with a slow wind-up like "Did you know" or "There is a".
+- WIN THE FIRST 3 WORDS: viewers decide in under a second and the cover flashes by fast, so the SINGLE most surprising/concrete word MUST be one of the first 3 words. The opening word itself should carry weight — a concrete noun, a startling object, or a question word. Lead with ONE of: a direct QUESTION ("Why does your phone die so fast?"), a concrete everyday specific ("This morning habit wastes your whole day"), or a count of list items ("3 signs you're doing it wrong") — the count ONLY if truthful. BANNED weak openers (never start with these): "Did you know", "There is", "There are", "It is", "This is", "Here is", "Have you", "Are you", "In this", "Learn", "Discover", "Find out", "The truth", "One thing".
 - NEVER invent, exaggerate, or guess a statistic or magnitude claim. Be accurate — never fabricate numbers. This includes percentages ("90% of people…") AND magnitude claims ("doubles/triples", "cuts it in half"): do not use any number or magnitude unless it is a well-established fact. If you are not certain, use a QUESTION or a CONCRETE everyday image instead.
-- Be a COMPLETE, self-contained thought of 6 to 12 words on a SINGLE line — never a fragment, never cut off, never ending on a weak word like "is/the/a/your/secretly".
+- Be a COMPLETE, self-contained thought of 4 to 9 words on a SINGLE line — SHORT and punchy so it reads in the ~1.5-2s the cover is on screen. Never a fragment, never cut off, never ending on a weak word like "is/the/a/your/secretly".
 - Open a strong CURIOSITY GAP — tease the payoff/secret/danger/stakes, do NOT explain or answer it.
 - Be CONCRETE and specific to THIS topic — name the thing, the everyday object, the moment. Avoid vague abstractions ("silent damage", "hidden costs") with no concrete picture. No hashtags, no emojis, no quotation marks.
 
-Examples of the STYLE (do not copy — match the punchy, concrete, first-word-strong energy):
-- "Your sleep schedule predicts how much you'll earn"
-- "This one setting drains your battery all day"
-- "3 morning habits people mistake for productivity"
-- "Why does your best idea always come in the shower?"
+Examples of the STYLE (do not copy — match the punchy, concrete, FIRST-WORD-STRONG energy; note each is 4-9 words):
+- "Your sleep schedule predicts your paycheck"
+- "This one setting drains your battery"
+- "3 morning habits mistaken for productivity"
+- "Why does your best idea hit in the shower?"
 
 Return ONLY the single complete hook line — no prose, no markdown, no label, no quotes.`;
     const hookSystem =
-      `You write irresistible, COMPLETE curiosity-gap hook lines (6-12 words) for ${niche} YouTube Shorts. Always return ONE finished line — never a fragment. Return ONLY the hook line, no prose, no markdown, no quotes.`;
+      `You write irresistible, COMPLETE curiosity-gap hook lines (4-9 words, first word strong) for ${niche} YouTube Shorts. Lead with the most surprising/concrete word; never open with weak wind-ups like "Did you know" or "There is". Always return ONE finished line — never a fragment. Return ONLY the hook line, no prose, no markdown, no quotes.`;
     // Tier order: Gemini FLASH → Grok → Gemini REASONING (last resort).
     // Generous token budget so even a "thinking" fallback model finishes the line
     // (80 was too low and produced truncated fragments like "This is").
@@ -375,6 +379,15 @@ Return ONLY the single complete hook line — no prose, no markdown, no label, n
       "my","their","his","her","our","can","will","could","should","would","may","might",
       "than","but","so","if","when","how","why","what","which","because","about",
     ]);
+    // Weak wind-up openers that bury the hook — a hook starting with any of these
+    // (1- or 2-word) phrases wastes the first second and gets swiped away. Rejecting
+    // them forces the model to lead with the strong, concrete word.
+    const WEAK_OPENERS = new Set([
+      "did", "there", "here", "learn", "discover", "understand",
+      "did you", "did you know", "there is", "there are", "there's",
+      "here is", "here's", "it is", "it's", "this is", "have you",
+      "are you", "do you", "in this", "find out", "the truth", "one thing",
+    ]);
     const parseHook = (raw: string): string => {
       let l = sanitize(
         (raw ?? "")
@@ -384,17 +397,23 @@ Return ONLY the single complete hook line — no prose, no markdown, no label, n
           .trim()
       );
       const w = l.split(" ").filter(Boolean);
-      if (w.length > 13) l = w.slice(0, 13).join(" ");
-      if (l.length > 92) l = l.slice(0, 92).replace(/\s+\S*$/, "").trim();
+      // Tighten toward a punchy 4–9 word line (cover flashes by fast). Cap at 9.
+      if (w.length > 9) l = w.slice(0, 9).join(" ");
+      if (l.length > 72) l = l.slice(0, 72).replace(/\s+\S*$/, "").trim();
       return l;
     };
-    // A hook is COMPLETE only if it's ≥4 words, ≥18 chars, and does NOT end on a
-    // dangling word (verb-to-be, article, preposition, conjunction, or an -ly adverb
-    // like "quietly"/"secretly") — a dangling end means the model truncated.
+    // A hook is COMPLETE only if it's 4–9 words, ≥14 chars, does NOT open with a weak
+    // wind-up (first word/two words in WEAK_OPENERS → buries the hook), and does NOT
+    // end on a dangling word (verb-to-be, article, preposition, conjunction, or an -ly
+    // adverb like "quietly"/"secretly") — a dangling end means the model truncated.
     const isCompleteHook = (raw: string): boolean => {
       const l = parseHook(raw);
       const w = l.split(" ").filter(Boolean);
-      if (w.length < 4 || l.length < 18) return false;
+      if (w.length < 4 || w.length > 9 || l.length < 14) return false;
+      // First-word-strong: reject weak wind-up openers (single word or first two words).
+      const first1 = (w[0] ?? "").toLowerCase().replace(/[^a-z']/g, "");
+      const first2 = `${first1} ${(w[1] ?? "").toLowerCase().replace(/[^a-z']/g, "")}`.trim();
+      if (WEAK_OPENERS.has(first1) || WEAK_OPENERS.has(first2)) return false;
       const last = (w[w.length - 1] ?? "").toLowerCase().replace(/[^a-z]/g, "");
       return !(DANGLING.has(last) || /ly$/.test(last));
     };
@@ -883,7 +902,7 @@ function pickRotatingShortTheme(postId?: string): Theme {
  */
 export async function buildShortForPost(
   post: YtPostInput,
-  yt: Pick<YouTubeSettings, "secondsPerImage" | "descriptionSuffix" | "voiceover" | "voiceoverVoice" | "burnCaptions">,
+  yt: Pick<YouTubeSettings, "secondsPerImage" | "targetShortSeconds" | "descriptionSuffix" | "voiceover" | "voiceoverVoice" | "burnCaptions">,
 ): Promise<BuiltShort> {
   // Serialize the ENTIRE build (slide + hook/outro render + music + ffmpeg) PROCESS-WIDE
   // so only ONE memory-heavy Short renders at a time. The publish triggers (30s scheduler
@@ -910,7 +929,9 @@ export async function buildShortForPost(
     const imgBuf = await fetchUrlToBuffer(uploadedUrl);
     const music  = await selectMusicForCardSafe(imgBuf);
     const mp4    = await renderCardsToShortMp4([imgBuf], {
-      secondsPerImage: yt.secondsPerImage ?? 5,
+      // Single uploaded still image → show it for the whole target Short length
+      // (the "Target Short length" setting is now the single pacing control).
+      secondsPerImage: shortPlan(yt.targetShortSeconds).target,
       audio:           music?.buffer ?? null,
     });
     if (!mp4) throw new Error("ffmpeg failed to render the Short MP4 from the uploaded image");
@@ -960,18 +981,20 @@ export async function buildShortForPost(
     ...(hasOutro ? [outroCard] : []),
   ];
 
-  // ── Per-card durations: FRONT-LOAD THE HOOK ──────────────────────────────────
+  // ── Per-card durations: PACE TO THE TARGET LENGTH, FRONT-LOAD THE HOOK ────────
+  // All pacing derives from shortPlan(targetShortSeconds) — the SINGLE source of
+  // truth shared with the content generator (which sizes the script to fit) — so a
+  // Short actually lands near the chosen target (15|20|30|45|60s, soft target).
   // Live data showed 70–90% of viewers swipe away in the first ~2s, so the hook
-  // cover must flash by FAST (≈2s) to get viewers into the value before they bounce;
-  // content slides hold for the configured per-card duration, and the subscribe outro
-  // is brief (≈3s). The renderer hard-caps the grand total at the ~3-min Shorts ceiling.
-  // Content-card seconds come from the YouTube "Seconds per card" SETTING so the owner
-  // can actually control Short length/pacing (clamped to the UI's 2–15s range). Previously
-  // this was a fixed ~50s target that ignored the setting entirely. (These are the
-  // SILENT-Short durations; with voiceover ON each card is timed to its narration below.)
-  const HOOK_SECS = 2, OUTRO_SECS = 3;
+  // cover FLASHES by fast (plan.hookSecs) to get viewers into the value before they
+  // bounce; content slides hold for plan.perCardSecs; the subscribe outro is brief
+  // (plan.outroSecs). The grand total is soft-capped at plan.maxSecs (≈target+30%,
+  // never past YouTube's ~178s Shorts ceiling). These are the SILENT-Short durations;
+  // with voiceover ON each card is timed to its narration below (min hold = perCardSecs).
+  const plan = shortPlan(yt.targetShortSeconds);
+  const HOOK_SECS = plan.hookSecs, OUTRO_SECS = plan.outroSecs;
   const contentCount = Math.max(1, cardBuffers.length);
-  const contentSecs = Math.max(2, Math.min(15, Math.round(yt.secondsPerImage ?? 6)));
+  const contentSecs = plan.perCardSecs;
   const durations = [
     ...(hasHook ? [HOOK_SECS] : []),
     ...cardBuffers.map(() => contentSecs),
@@ -993,7 +1016,22 @@ export async function buildShortForPost(
   let voDurations = durations;
   if (yt.voiceover && isTtsConfigured()) {
     const niche = (brand.niche ?? "").trim() || "this";
-    const strip = (s: string) => (s || "").replace(/[*_#`>~]/g, "").replace(/\s+/g, " ").trim();
+    // Clean text for narration. Card content is internally encoded with labels
+    // (TIP:/TAGLINE:) and may carry bullets, hashtags, emoji and markdown — none of
+    // which should be SPOKEN. Strip them so the TTS never reads "TIP", "TAGLINE",
+    // "hashtag…", bullet symbols or stray punctuation aloud.
+    const strip = (s: string) =>
+      (s || "")
+        .replace(/https?:\/\/\S+/gi, " ")                              // URLs
+        .replace(/^\s*(?:TIP|TAGLINE|HOOK|CTA|NOTE|FACT|HEADLINE|BODY)\s*[:\-]\s*/gim, "") // internal labels
+        .replace(/(^|\s)#[\p{L}\p{N}_]+/gu, " ")                       // #hashtag tokens
+        .replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, " ")                      // @mentions
+        .replace(/^\s*(?:\d+[.)]|[-–—•*‣◦⁃►▪·])\s+/gm, "")             // leading bullets / numbering
+        .replace(/[\p{Extended_Pictographic}\u{FE00}-\u{FE0F}‍\u{1F1E6}-\u{1F1FF}]/gu, "") // emoji / pictographs / variation selectors / ZWJ
+        .replace(/[*_`>~|#]/g, "")                                     // markdown residue
+        .replace(/\s{2,}/g, " ")
+        .replace(/\s+([.,!?;:])/g, "$1")                               // tidy space before punctuation
+        .trim();
     // #4 engagement loop: the SPOKEN outro is a SUBSCRIBE ask (this is YouTube), varied
     // per-Short so it never sounds templated across the feed.
     const ctaPool = [
@@ -1009,7 +1047,23 @@ export async function buildShortForPost(
 
     // PER-CARD PATH — one narration segment per card, paced by the seconds-per-card min.
     try {
-      const specsForVoice = buildContentSlideSpecs(post);
+      // A STORY renders as a SINGLE visual card (headline + tips + tagline all on one
+      // image). buildContentSlideSpecs would split its text into many specs that can't
+      // align to that one card, forcing the even-split fallback where the card drifts
+      // out of sync with the voice. So for a STORY we build ONE narration segment that
+      // speaks the whole card — it then aligns 1:1 with the single card and the per-card
+      // sync path holds the card for exactly its narration. Other post types unchanged.
+      const specsForVoice = post.type === "STORY"
+        ? (() => {
+            const ls = (post.content ?? "").split("\n").filter(Boolean);
+            const hl = post.title || ls[0] || "";
+            const bd = ls[1] && !/^(?:TIP|TAGLINE):/.test(ls[1]) ? ls[1] : "";
+            const tps = ls.filter((l) => l.startsWith("TIP:")).map((l) => l.slice(4).trim()).filter(Boolean).slice(0, 6);
+            const tg = (ls.find((l) => l.startsWith("TAGLINE:")) ?? "").replace(/^TAGLINE:/, "").trim();
+            const spoken = [hl, bd, ...tps, tg].filter(Boolean).join(". ");
+            return [{ slide: 1, headline: hl || "Story", body: spoken }];
+          })()
+        : buildContentSlideSpecs(post);
       const canAlign = specsForVoice.length > 0 && specsForVoice.length === cardBuffers.length;
       if (canAlign) {
         let segTexts = [
@@ -1019,8 +1073,10 @@ export async function buildShortForPost(
         ];
         // The Short's length ADAPTS to the content (long card text → longer card →
         // longer Short), so we narrate each card's FULL text. Only trim if the whole
-        // narration would approach YouTube's ~3-min Shorts ceiling (~380 words ≈ 170s).
-        const MAXW = 380;
+        // narration would exceed the soft ceiling for THIS target (plan.maxSecs,
+        // ≈target+30%, ≤178s). ≈2.5 words/sec → maxSecs*2.5 words. The generator now
+        // sizes content to fit, so this trim rarely fires.
+        const MAXW = Math.max(40, Math.round(plan.maxSecs * 2.5));
         let segW = segTexts.map((s) => s.split(/\s+/).filter(Boolean));
         const totW = segW.reduce((a, w) => a + w.length, 0);
         if (totW > MAXW) {
@@ -1047,15 +1103,21 @@ export async function buildShortForPost(
             const target = speech.map((d, i) => {
               const isHook  = hasHook  && i === 0;
               const isOutro = hasOutro && i === buffers.length - 1;
-              const floor = isHook ? 1.5 : isOutro ? 2 : contentSecs;
+              // Hook flashes fast; outro brief; content honours the per-card MINIMUM
+              // hold from the target plan (plan.perCardSecs) so voice stays in sync
+              // with the on-screen card without dragging the Short past its target.
+              const floor = isHook ? plan.hookSecs : isOutro ? plan.outroSecs : contentSecs;
               return Math.max(d, floor);
             });
             let pad = target.map((t, i) => Math.max(0, t - speech[i]));
 
-            // Keep within the ~3-min Shorts ceiling by trimming pads (never the speech).
+            // Soft-cap the grand total near the target (plan.maxSecs ≈ target+30%,
+            // ≤178s) by trimming PAD only — never the speech. If narration alone is
+            // already over the ceiling, drop all pad (the generator sizes content to
+            // fit, so speech rarely overruns; we never cut mid-word).
             const totSpeech = speech.reduce((a, b) => a + b, 0);
             const totPad = pad.reduce((a, b) => a + b, 0);
-            const budget = 178 - totSpeech;
+            const budget = plan.maxSecs - totSpeech;
             if (budget <= 0) pad = pad.map(() => 0);
             else if (totPad > budget) { const k = budget / totPad; pad = pad.map((p) => p * k); }
 
@@ -1071,7 +1133,7 @@ export async function buildShortForPost(
                   catch (e: any) { console.warn("[YouTube] caption build failed:", e?.message ?? e); }
                 }
               }
-              console.log(`[YouTube] Voiceover ON: per-card synced (${buffers.length} cards, min hold ${contentSecs}s), burnedCaptions=${assSubtitles ? "yes" : "no (YouTube auto-captions)"}`);
+              console.log(`[YouTube] Voiceover ON: per-card synced (${buffers.length} cards, target ${plan.target}s, min hold ${contentSecs}s, cap ${plan.maxSecs}s), burnedCaptions=${assSubtitles ? "yes" : "no (YouTube auto-captions)"}`);
             }
           }
         }
@@ -1094,7 +1156,8 @@ export async function buildShortForPost(
           voiceTrack = tts.audio;
           const dur = await probeAudioDurationSec(tts.audio);
           if (dur > 1) {
-            const totalV = Math.min(180, dur + 0.5);
+            // Soft-cap the fallback (even-split) Short at the target ceiling too.
+            const totalV = Math.min(plan.maxSecs, dur + 0.5);
             voDurations = buffers.map(() => Math.max(2, totalV / buffers.length));
           }
           if (yt.burnCaptions) {
@@ -1125,7 +1188,7 @@ export async function buildShortForPost(
   });
   if (!mp4) throw new Error("ffmpeg failed to render the Short MP4");
 
-  console.log(`[YouTube] Built carousel Short: ${buffers.length} cards${voiceTrack ? " + AI voiceover" : ` (hook ${HOOK_SECS}s + ${contentCount}×${contentSecs}s + outro ${OUTRO_SECS}s)`} ≈ ${voDurations.reduce((a,b)=>a+b,0).toFixed(0)}s`);
+  console.log(`[YouTube] Built carousel Short: ${buffers.length} cards${voiceTrack ? " + AI voiceover" : ` (hook ${HOOK_SECS}s + ${contentCount}×${contentSecs}s + outro ${OUTRO_SECS}s)`} → target ${plan.target}s (cap ${plan.maxSecs}s) ≈ ${voDurations.reduce((a,b)=>a+b,0).toFixed(0)}s`);
 
   // Build the ONE unified rich caption + suffix (shared identically with Instagram —
   // generated once and cached in-memory by post.id), then append the music attribution
@@ -1173,7 +1236,7 @@ async function selectMusicForCardSafe(
  */
 export async function publishPostToYouTubeShort(
   post: YtPostInput,
-  yt: Pick<YouTubeSettings, "privacy" | "secondsPerImage" | "descriptionSuffix" | "voiceover" | "voiceoverVoice" | "burnCaptions">,
+  yt: Pick<YouTubeSettings, "privacy" | "secondsPerImage" | "targetShortSeconds" | "descriptionSuffix" | "voiceover" | "voiceoverVoice" | "burnCaptions">,
   creds?: YouTubeCreds,
 ): Promise<PublishYtResult & { mp4: Buffer; description: string }> {
   const brand = await getBrand();
