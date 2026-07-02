@@ -130,7 +130,12 @@ Content slots have **stable internal IDs** (kept for data/schema compatibility �
 ## ✨ Key Features
 
 ### 🧠 AI content generation
-- **Selectable provider — per brand.** Choose **Grok** (Groq Llama-3.3-70B) or **Gemini** as the active content provider in **Settings → AI** (`aiProvider`). For content JSON, Grok is tried first regardless, then a Gemini model-fallback chain (Grok is a clean, non-"thinking" instruct model that returns complete JSON reliably). The auto-poster resolves the provider **per brand** via `getAIClient(brandId)`. **Known limitation:** vision **captions and YouTube tags** call `getAIClient()` with no brand id, so they use the **primary** brand's provider regardless of which brand is publishing.
+- **Per-task AI Config — provider + model + fallback chain (per brand).** **Settings → AI** configures **three independent task lanes**, each an ordered fallback **chain** of `provider · model` steps tried top-to-bottom until one succeeds:
+  - **Content** (`contentChain`) — scripts, captions, hooks.
+  - **Reply** (`replyChain`) — YouTube comment auto-replies.
+  - **Vision** (`visionChain`) — cover-card analysis for music mood (**Gemini/Groq only** — text-only providers excluded).
+  Providers are **Grok** (Groq Llama-3.3-70B), **Cerebras** (`gpt-oss-120b`, OpenAI-compatible), and **Google Gemini**. `resolveModel`/`analyzeMediaResilient` walk the configured chain (`lib/aiModels.ts` + `lib/ai-factory.ts`), so a single provider outage or quota exhaustion transparently falls through to the next step. Defaults seed a Groq-first content/reply chain and a Gemini-first vision chain, so existing setups keep working. The auto-poster resolves each chain **per brand** via `getAIClient(task, brandId)`. **Known limitation:** vision analysis + YouTube tags call the factory with no brand id, so they use the **primary** brand's chain regardless of which brand is publishing.
+- **Cerebras support.** Add a **Cerebras** key (`Settings → AI` `cerebrasApiKey`, or `CEREBRAS_API_KEY` env) and select it in any content/reply lane for very fast `gpt-oss-120b` inference; it has no vision model, so it's omitted from the vision lane.
 - **Brand-aware persona.** The active brand's **niche** and **persona/voice** are injected into the system prompt (`buildBrandSystemPrompt` / `buildBrandPersona`), so generated content matches your topic and tone.
 - **Topic rotation + auto-expansion.** Every used topic is logged; once your configured topics run out, the AI generates fresh same-style topics so content never repeats.
 
@@ -165,6 +170,9 @@ All scheduling runs in a configurable timezone (per brand; neutral default **UTC
 - **Morning Digest** — an optional once-a-day summary email of the **last 24 hours** of your YouTube channel, sent at a time you choose (IST). In **Settings → Morning Digest** you flip a master switch and pick exactly what to include: 24h insights, new comments, published videos, subscribers, top performer, auto-engagement, today's schedule, failures, growth vs. prior day, system health, and AI usage. Built by `lib/morningDigest.ts` (each section best-effort), rendered by `sendMorningDigestEmail`, and polled from `instrumentation.ts` once per day at the configured hour.
 - **Activity + live alerts** — every publish/reply/topic-use logged to `ActivityLog`; real-time alerts stream over SSE (`/api/notifications/stream`) and email (publish, fail, YouTube published/failed, comment replied).
 
+### 🎨 Appearance (10 app-wide themes)
+- **Selectable dashboard theme** — **Settings → Appearance** offers **10 brand-neutral palettes** — Crimson (default), Amethyst, Sapphire, Emerald, Sunset, Rosé, Cyber Teal, Gold, Indigo Night, Slate Mono. Themes are applied entirely through **CSS variables** (`lib/themes.ts` + `[data-theme="…"]` token blocks in `app/globals.css`, wired through Tailwind), swapped instantly by **next-themes** (`attribute="data-theme"`) and **persisted per device** — no rebuild, no code edit. A live accent preview shows each palette before you pick it.
+
 ---
 
 ## 🛠 How a Short Is Built (pipeline)
@@ -175,7 +183,7 @@ All scheduling runs in a configurable timezone (per brand; neutral default **UTC
 2. **Content slides.** `buildContentSlideSpecs()` splits the post's full content into one point per large-text slide. `CAROUSEL` posts render their authored slides; quiz types render setup/question/option slides and **never** reveal the answer.
 3. **SUBSCRIBE outro** (`lib/hookCard.ts`).
 4. **Render.** Cards are designed full-frame 9:16 (**1080×1920**) and rendered at **720×1280** H.264. They are rasterized with **Satori → SVG → Sharp** (NOT raw SVG) because the production container's librsvg rejects hand-written SVG; Satori output rasterizes reliably. The 720p render avoids ffmpeg stalling at `frame=0` on memory/CPU-constrained hosts.
-5. **Stitch.** Cards → vertical MP4 via **ffmpeg-static** (`lib/videoGenerator.ts`), total ≈ **45–58s** (hard-capped at 58s), with `secondsPerImage` per content slide (hook ≈2s, outro ≈3s).
+5. **Stitch.** Cards → vertical MP4 via **ffmpeg-static** (`lib/videoGenerator.ts`), paced to a **selectable target length** — **Settings → YouTube → Short length** (`targetShortSeconds`): **15 / 20 / 30 / 45 / 60s** (default **30s**). `shortPlan()` (`lib/shortLength.ts`) distributes time toward the target while still adapting to the content (longer card text → longer hold), hard-capped at YouTube's ~3-min ceiling (180s); `secondsPerImage` is the per-content-slide minimum (hook ≈2s, outro ≈3s).
 6. **Music.** Gemini vision reads the cover → mood → Jamendo CC instrumental mixed under the audio (faded) and credited in the description.
 7. **Caption + tags.** `buildRichCaption()` (cached) + `buildYouTubeTagsAI()`.
 8. **Upload** via `uploadShort()` (Data API v3) → **seed comment**.
@@ -203,7 +211,7 @@ YouTubePilot controls **multiple YouTube "brand" channels**. A *brand* = one You
 | Framework | **Next.js 16** (App Router) + React 18, request gate in **`proxy.ts`** |
 | Language | TypeScript 5 |
 | Styling | Tailwind CSS + glassmorphism, Framer Motion, Radix UI, Recharts |
-| Content AI | **Grok first** (Groq Llama-3.3-70B), then **Google Gemini** model-fallback chain |
+| Content AI | Per-task fallback **chains** across **Grok** (Groq Llama-3.3-70B), **Cerebras** (`gpt-oss-120b`) & **Google Gemini** (configured in Settings → AI) |
 | Reply AI | **Groq** — Llama-3.3-70B (YouTube comment replies), Llama-3.1-8B (fast fallback) |
 | Vision | Gemini multimodal (captions + music-mood selection) |
 | Image rendering | **Satori + Sharp** (server-side cards) |
@@ -282,11 +290,15 @@ Rename the **user-facing label** of each content slot (the internal ID is preser
 ### AI (`Settings → AI`)
 | Field | Controls |
 |-------|----------|
-| `aiProvider` | Active content provider: `grok` \| `gemini` (Grok still tried first for content JSON) |
+| `contentChain` | **Content lane** — ordered `provider · model` fallback chain for scripts/captions/hooks (providers: `grok` \| `cerebras` \| `gemini`) |
+| `replyChain` | **Reply lane** — ordered fallback chain for YouTube comment auto-replies |
+| `visionChain` | **Vision lane** — ordered fallback chain for cover-card analysis (**`gemini`/`groq` only**) |
+| `cerebrasApiKey` | Cerebras key stored in DB (env `CEREBRAS_API_KEY` takes priority) |
+| `geminiApiKey` | Gemini key stored in DB (env `GEMINI_API_KEY` takes priority) |
 | `defaultTone` | Default content tone |
 | `defaultType` | Default post type in the generator |
 | `language` | Output language |
-| `geminiApiKey` | Gemini key stored in DB (env `GEMINI_API_KEY` takes priority) |
+| `aiProvider` | *(legacy)* single content provider — retained for back-compat; superseded by `contentChain` |
 
 ### YouTube (`Settings → YouTube`)
 | Setting | What it does |
@@ -298,7 +310,8 @@ Rename the **user-facing label** of each content slot (the internal ID is preser
 | `scheduleDays[]` | **GLOBAL** days the poster runs (0=Sun … 6=Sat); fallback for any day on "Use global" |
 | `dailySchedule[]` | **Per-day overrides** — per weekday → ON/OFF · how many posts · at what times. Overrides the global `postsPerDay`/`postTimes`; days on "Use global" fall back to them. |
 | `customScheduleOnly` | When **ON**, only weekdays with a Custom entry post — others generate **nothing**. Default **OFF**. |
-| `secondsPerImage` | Seconds each content slide shows (2–15, default 5; hook ≈2s, outro ≈3s) |
+| `targetShortSeconds` | **Short length** — target Short duration: `15` \| `20` \| `30` \| `45` \| `60`s (default **30**). Paces the cards toward this target while still adapting to the content; hard-capped at 180s. |
+| `secondsPerImage` | Seconds each content slide shows (2–15, default 5; hook ≈2s, outro ≈3s) — the per-card **minimum**; `targetShortSeconds` sets the overall target |
 | `voiceover` | **Opt-in (default OFF).** Narrate each Short with an AI voice, mixed over auto-ducked music; cards re-time to span the narration. Any TTS failure falls back to the silent music-only Short. |
 | `voiceoverVoice` | Orpheus voice for the narration — male `daniel` (default), `austin`, `troy`; female `autumn`, `diana`, `hannah` |
 | `burnCaptions` | **Opt-in (default OFF).** **OFF** → no hardcoded captions, so YouTube auto-generates + auto-translates captions per viewer. **ON** → burns TikTok-style word-by-word captions (Groq Whisper timestamps → ASS → re-encode). |
@@ -317,7 +330,7 @@ Live connection status (Connected / channel name) is returned by `GET /api/setti
 | `emailPublish` / `emailFails` / `emailAnalytics` | Email on publish / failure / daily digest |
 | `pushPublish` / `pushComments` / `pushWeeklyReport` | In-app/push notification toggles |
 
-Other tabs: **Accounts** (add/edit/enable/delete brands), **Prompts** (per-post-type system-prompt overrides + per-account default content prompts), **Account / Danger** (login key, destructive actions). The Brand, Content Types, AI, YouTube, and Prompts tabs are scoped to the brand selected in the header switcher.
+Other tabs: **Accounts** (add/edit/enable/delete brands), **Appearance** (pick one of 10 app-wide themes; per-device), **Prompts** (per-post-type system-prompt overrides + per-account default content prompts), **Account / Danger** (login key, destructive actions). The Brand, Content Types, AI, YouTube, and Prompts tabs are scoped to the brand selected in the header switcher.
 
 ---
 
@@ -365,6 +378,7 @@ npm run youtube:auth  # one-command YouTube OAuth → prints YOUTUBE_REFRESH_TOK
 | `AI_MODEL_FAST` | – | Fast Groq fallback (`llama-3.1-8b-instant`) |
 | `GEMINI_API_KEY` | ✅ | Gemini key — content fallback, vision, music mood |
 | `GEMINI_MODEL` | – | Optional override pinning the start of the Gemini chain |
+| `CEREBRAS_API_KEY` | – | Cerebras key for the per-task AI Config chains (can also be set in Settings → AI) |
 | `TTS_PROVIDER` | – | Voiceover TTS provider: `groq` (default) \| `canopy`. Auto-falls back to the other, then Gemini TTS |
 | `GROQ_TTS_MODEL` | – | Override the Groq Orpheus TTS model (default `canopylabs/orpheus-v1-english`) |
 | `GROQ_TTS_VOICE` | – | Default Groq Orpheus voice when none is selected in Settings |
@@ -394,6 +408,7 @@ npm run youtube:auth  # one-command YouTube OAuth → prints YOUTUBE_REFRESH_TOK
 |---------|-------|-------|
 | **Groq** (`GROK_API_KEY`) | [console.groq.com](https://console.groq.com) → API Keys | Free tier is generous; powers content + replies. |
 | **Gemini** (`GEMINI_API_KEY`) | [aistudio.google.com](https://aistudio.google.com/app/apikey) → Get API key | Used for vision (music mood) + content fallback. |
+| **Cerebras** (`CEREBRAS_API_KEY`) | [cloud.cerebras.ai](https://cloud.cerebras.ai) → API Keys | Optional; fast `gpt-oss-120b` for content/reply lanes. |
 | **Cloudinary** (`CLOUDINARY_*`) | [cloudinary.com](https://cloudinary.com) → Dashboard | Create an **unsigned upload preset** for `CLOUDINARY_UPLOAD_PRESET`. |
 | **Resend** (`RESEND_API_KEY`) | [resend.com/api-keys](https://resend.com/api-keys) | For the daily report + alert emails. `RESEND_FROM` defaults to `onboarding@resend.dev`. |
 | **YouTube** (`YOUTUBE_*`) | Google Cloud Console + the helper script below | One-time OAuth — see below. |
@@ -518,7 +533,10 @@ youtubepilot-ai/
 │   ├── videoGenerator.ts      # Cards → 720×1280 MP4 (ffmpeg-static, watchdog, serialized single-flight)
 │   ├── music.ts               # Vision mood → Jamendo CC instrumental + attribution
 │   ├── richCaption.ts         # Unified rich caption (cached) + follow links
-│   ├── grok.ts / gemini.ts / ai-factory.ts        # AI clients + provider selection
+│   ├── grok.ts / gemini.ts / ai-factory.ts        # AI clients + per-task chain resolution (content/reply/vision)
+│   ├── aiModels.ts            # ★ Provider/model catalogs + per-task fallback chains (Grok/Cerebras/Gemini)
+│   ├── shortLength.ts         # Selectable Short length (15/20/30/45/60s) → shortPlan pacing
+│   ├── themes.ts              # ★ 10 app-wide themes (Settings → Appearance, CSS-variable driven)
 │   ├── postTypeImageGenerator.ts / slideImageGenerator.ts  # Satori card renderers
 │   ├── imageGenerator.ts      # Cloudinary upload + carousel image pipeline
 │   ├── captionBuilder.ts      # Structured captions + applyBrand (handle resolution)
