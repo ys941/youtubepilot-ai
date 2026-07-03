@@ -266,7 +266,7 @@ Both `Post` and `ScheduledPost` carry a `platform` column (default `"youtube"`).
 
 ### Idempotency & self-healing
 - **`youtubeVideoId`** is stored on both `ScheduledPost` and `Post`; every YouTube path re-reads the freshest value before uploading, so retries never double-post.
-- **Claim lock** — `publishOverdueScheduled` and the manual route atomically flip a `PENDING` `ScheduledPost` to `FAILED("__CLAIMING__")`; only the caller that gets `count===1` proceeds. A **reaper** resets `__CLAIMING__` rows back to `PENDING`. The claim string **embeds a timestamp**, and the reaper resets stale claims by that **embedded claim time** (>~10 min), not the row's `createdAt` — so legitimately recent claims are never reaped out from under an in-flight upload, which stops duplicate uploads.
+- **Claim lock** — `publishOverdueScheduled` and the manual route atomically flip a `PENDING` `ScheduledPost` to `FAILED("__CLAIMING__")`; only the caller that gets `count===1` proceeds. A **reaper** resets `__CLAIMING__` rows back to `PENDING`. The claim string **embeds a timestamp**, and the reaper resets stale claims by that **embedded claim time** (older than **45 min** — sized to exceed the worst-case legitimate render+upload so an *active* claim is never reaped mid-publish), not the row's `createdAt` — which stops duplicate uploads.
 - **Render lock (OOM guard)** — a process-wide **single-flight queue wraps the ENTIRE memory-heavy Short build** (card render + music + ffmpeg), so only one render is ever in memory at a time, even across concurrent brands/cycles.
 - **ffmpeg safety** — a 120s watchdog SIGKILLs wedged renders; the render lock above ensures only one pipeline runs at a time.
 - **JSON-resilient AI** — content-JSON generation tries the selected provider then **falls through to the other on empty output or quota exhaustion** (429 / `limit:0`), so Shorts never silently degrade to canned filler when a provider's free quota runs out.
@@ -354,7 +354,9 @@ cp .env.example .env.local        # fill in the variables below
 npm run db:generate && npm run db:push
 npm run dev                        # http://localhost:3000
 ```
-Then log in with your `APP_ACCESS_KEY` and open **Settings → Brand**.
+Then log in with your `APP_ACCESS_KEY` and open **Settings → Brand** (or **Settings → AI Setup** to have the AI configure the channel for you).
+
+> **Windows one-click:** run **`start-all.bat`** — it checks Docker, brings up the Postgres container, generates the Prisma client, syncs the schema (no destructive `--accept-data-loss`), starts the dev server, and opens the dashboard.
 
 ### NPM scripts
 ```bash
@@ -599,6 +601,9 @@ This is the **YouTube-only** edition — all Instagram/Meta functionality has be
 
 - **Access-key login.** The dashboard is gated by `APP_ACCESS_KEY`. `POST /api/auth/login` validates the key and sets a signed session cookie (signed/verified with `SESSION_SECRET`).
 - **Session gate on everything** (`proxy.ts`). Every page **and every `/api` route** is checked against the session cookie. Unauthenticated page requests redirect to `/login`; unauthenticated API requests get `401 JSON`.
+- **Login brute-force protection.** The access-key login uses a constant-time compare **plus** a per-IP rate limiter (≈8 failed attempts / 10 min → `429`), so the shared `APP_ACCESS_KEY` can't be guessed at speed.
+- **Same-site guard on side-effecting GETs.** `/api/scheduler/check` (which can trigger a publish) requires a same-origin `Sec-Fetch-Site`/`Origin`, so a cross-site request with a live cookie can't nudge publishing.
+- **YouTube-only, no Meta surface.** No Instagram/Facebook webhook, cross-post, or token path is reachable — nothing to spoof or leak from that side.
 - **Public allowlist only:** `/login`, `/api/auth/login`, `/api/health` (uptime probes), plus static asset paths (`/_next`, `/favicon`, `/fonts`, `/images`).
 - **Security headers** (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`) on every response.
 - **No bundled secrets.** Ship the zip safely — every credential is supplied by the operator via env/Settings; nothing is hard-coded.
