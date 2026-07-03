@@ -129,6 +129,10 @@ Content slots have **stable internal IDs** (kept for data/schema compatibility �
 
 ## ✨ Key Features
 
+### 🪄 AI Setup (describe your channel, the AI configures it)
+- **One-shot channel setup from a description.** In **Settings → AI Setup**, describe the channel you want in plain English. Groq (the content AI lane) then asks **6-10 tailored questions** (niche specifics, audience, persona/voice, tone, language, YouTube @handle + channel name, Shorts/day, publishing days, which content-type formats to enable, topic seeds) and fills your **entire config**: brand skin, content-type labels/enabled slots, 8-15 topic seeds, the publishing schedule, persona/tone/language, channel handle + name, and a default content prompt.
+- **Review before it writes.** The generated config is shown as readable **Brand / Channel / Persona / Content-types / Topics / Schedule** cards; **Apply** persists it via the normal preferences store (brand-scoped), and you can **Regenerate** or refine anytime in the other tabs. A **Manual** toggle keeps the fully hand-driven path (Brand / Content Types / YouTube) unchanged. Everything the AI returns is validated/clamped server-side (known content-type ids only, `postsPerDay` 1-5, valid `HH:MM`, days 0-6). Powered by `POST /api/ai/setup` (stages `questions` / `generate` / `apply`).
+
 ### 🧠 AI content generation
 - **Per-task AI Config — provider + model + fallback chain (per brand).** **Settings → AI** configures **three independent task lanes**, each an ordered fallback **chain** of `provider · model` steps tried top-to-bottom until one succeeds:
   - **Content** (`contentChain`) — scripts, captions, hooks.
@@ -274,6 +278,9 @@ Both `Post` and `ScheduledPost` carry a `platform` column (default `"youtube"`).
 ## ⚙️ Settings Reference
 
 Settings persist per brand (`lib/preferences.ts`): the **Primary** brand uses the `Preferences` singleton row (id `"singleton"`); every other brand stores the same shape in its `Brand.settings`. They survive restarts. Every field below is wired into the automation, **per brand**.
+
+### AI Setup (`Settings → AI Setup`)
+Describe your channel and let Groq configure it end to end — it asks tailored questions, then generates and previews the whole config (brand, content types, topics, schedule, persona, channel handle + name, default prompt) for you to **Apply** (brand-scoped) or **Regenerate**. A **Manual** toggle links straight to the hand-driven Brand / Content Types / YouTube tabs. Backed by `POST /api/ai/setup`.
 
 ### Brand (`Settings → Brand`)
 | Field | Controls |

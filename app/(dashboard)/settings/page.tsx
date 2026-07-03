@@ -9,7 +9,7 @@ import {
   ShieldCheck, Clock, Calendar,
   Activity, Sparkles, FileText, Plus, X,
   ChevronDown, ChevronUp, RotateCw, LogOut, Youtube,
-  Building2, Layers, Sunrise, Palette,
+  Building2, Layers, Sunrise, Palette, Wand2, ArrowLeft, ArrowRight, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -31,6 +31,7 @@ import {
 type LaneKind = "content" | "vision";
 
 const tabs = [
+  { id: "ai-setup",      label: "AI Setup",      icon: Wand2 },
   { id: "brand",         label: "Brand",         icon: Sparkles },
   { id: "content-types", label: "Content Types", icon: FileText },
   { id: "appearance",    label: "Appearance",    icon: Palette },
@@ -2169,6 +2170,470 @@ function YouTubeTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AI SETUP TAB  (describe your channel → AI asks questions → generates full config)
+// ─────────────────────────────────────────────────────────────────────────────
+
+type SetupQuestion = {
+  id: string;
+  label: string;
+  hint: string;
+  type: "text" | "select" | "chips";
+  options?: string[];
+};
+
+// The generated-config preview shape returned by /api/ai/setup (stage:"generate").
+interface SetupConfig {
+  brand: {
+    appName?: string;
+    tagline?: string;
+    niche?: string;
+    purpose?: string;
+    audience?: string;
+    language?: string;
+    defaultTone?: string;
+    commentCtaLine?: string;
+    persona?: { role?: string; voice?: string; handle?: string; displayName?: string };
+    youtube?: { handle?: string; channelName?: string };
+    contentTypes?: Record<string, { label?: string; enabled?: boolean }>;
+    topics?: string[];
+  };
+  youtube: {
+    postsPerDay: number;
+    postTimes: string[];
+    scheduleDays: number[];
+    topics: string[];
+    postTypes: string[];
+  };
+  ytDefaultPrompt: string;
+  summary: { enabledTypes: Array<{ id: string; label: string }>; topics: string[] };
+}
+
+const SETUP_DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function AiSetupTab({ onGoToTab }: { onGoToTab: (id: string) => void }) {
+  const { brandId } = useSelectedBrand();
+  const { reload } = useBrandContext();
+
+  const [mode, setMode]   = useState<"ai" | "manual">("ai");
+  const [step, setStep]   = useState<"describe" | "answer" | "review">("describe");
+  const [busy, setBusy]   = useState(false);
+
+  const [description, setDescription] = useState("");
+  const [questions, setQuestions]     = useState<SetupQuestion[]>([]);
+  // Answers: text/select store a string; chips store a string[] joined on submit.
+  const [answers, setAnswers]   = useState<Record<string, string>>({});
+  const [chipSel, setChipSel]   = useState<Record<string, string[]>>({});
+  const [config,  setConfig]    = useState<SetupConfig | null>(null);
+
+  const resetFlow = () => {
+    setStep("describe"); setQuestions([]); setAnswers({}); setChipSel({}); setConfig(null);
+  };
+
+  const generateQuestions = async () => {
+    if (!description.trim()) { toast.error("Describe your channel first"); return; }
+    setBusy(true);
+    const tid = toast.loading("Thinking up the right questions…");
+    try {
+      const res  = await fetch(withBrand("/api/ai/setup", brandId), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: "questions", description }),
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.questions)) {
+        setQuestions(data.questions);
+        setAnswers({}); setChipSel({});
+        setStep("answer");
+        toast.success("Answer a few questions ✨", { id: tid });
+      } else {
+        toast.error(data.error ?? "Could not generate questions", { id: tid });
+      }
+    } catch {
+      toast.error("Network error", { id: tid });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const generateConfig = async () => {
+    setBusy(true);
+    const tid = toast.loading("Building your channel config…");
+    // Fold chip selections into the answers map (comma-joined).
+    const merged: Record<string, string> = { ...answers };
+    for (const [k, arr] of Object.entries(chipSel)) {
+      if (arr.length) merged[k] = arr.join(", ");
+    }
+    try {
+      const res  = await fetch(withBrand("/api/ai/setup", brandId), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: "generate", description, answers: merged }),
+      });
+      const data = await res.json();
+      if (data.success && data.config) {
+        setConfig(data.config as SetupConfig);
+        setStep("review");
+        toast.success("Here's your setup — review it 👇", { id: tid });
+      } else {
+        toast.error(data.error ?? "Could not generate config", { id: tid });
+      }
+    } catch {
+      toast.error("Network error", { id: tid });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyConfig = async () => {
+    if (!config) return;
+    setBusy(true);
+    const tid = toast.loading("Applying setup…");
+    try {
+      const res  = await fetch(withBrand("/api/ai/setup", brandId), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: "apply", config }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Setup applied ✅ Refine anytime in the other tabs.", { id: tid });
+        reload();
+      } else {
+        toast.error(data.error ?? "Apply failed", { id: tid });
+      }
+    } catch {
+      toast.error("Network error", { id: tid });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleChip = (qid: string, opt: string) => {
+    setChipSel((prev) => {
+      const cur = prev[qid] ?? [];
+      return { ...prev, [qid]: cur.includes(opt) ? cur.filter((x) => x !== opt) : [...cur, opt] };
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-base font-bold text-white flex items-center gap-2" style={{ fontFamily: "Sora, sans-serif" }}>
+          <Wand2 size={16} className="text-brand" /> AI Setup
+        </h3>
+        <p className="text-xs text-white/35 mt-1 leading-relaxed">
+          Set up your whole channel by describing it. The AI asks a few tailored questions, then fills
+          your brand, content types, topics, schedule, persona and channel details for you.
+        </p>
+      </div>
+
+      {/* Mode toggle */}
+      <div className="flex gap-2 p-1 rounded-xl w-fit" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+        {(["ai", "manual"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition-all",
+              mode === m ? "text-white" : "text-white/40 hover:text-white/70",
+            )}
+            style={mode === m ? { background: "var(--gradient-accent)" } : {}}
+          >
+            {m === "ai" ? <><Wand2 size={13} /> AI setup</> : <><FileText size={13} /> Manual</>}
+          </button>
+        ))}
+      </div>
+
+      {mode === "manual" && (
+        <div className="rounded-2xl border border-white/[0.07] p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <p className="text-sm text-white/70">Prefer to configure everything yourself? Use these tabs:</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: "brand", label: "Brand", icon: Sparkles },
+              { id: "content-types", label: "Content Types", icon: FileText },
+              { id: "youtube", label: "YouTube", icon: Youtube },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onGoToTab(t.id)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold text-white/70 border border-white/[0.08] hover:text-white hover:border-white/20 transition-all"
+              >
+                <t.icon size={13} /> {t.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-white/30">The AI path writes to these very same settings — you can always fine-tune afterward.</p>
+        </div>
+      )}
+
+      {mode === "ai" && (
+        <>
+          {/* Step indicator */}
+          <div className="flex items-center gap-2 text-[11px] text-white/40">
+            {[
+              { k: "describe", n: 1, label: "Describe" },
+              { k: "answer",   n: 2, label: "Answer" },
+              { k: "review",   n: 3, label: "Review" },
+            ].map((s, i) => (
+              <div key={s.k} className="flex items-center gap-2">
+                <span className={cn(
+                  "flex items-center justify-center w-5 h-5 rounded-full font-bold",
+                  step === s.k ? "bg-brand text-white" : "bg-white/[0.06] text-white/40",
+                )}>{s.n}</span>
+                <span className={cn(step === s.k && "text-white/80 font-medium")}>{s.label}</span>
+                {i < 2 && <span className="text-white/15">—</span>}
+              </div>
+            ))}
+          </div>
+
+          {/* Step 1: Describe */}
+          {step === "describe" && (
+            <div className="rounded-2xl border border-white/[0.07] p-5 space-y-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <div>
+                <label className="text-xs font-medium text-white/40 block mb-1.5 uppercase tracking-wider">
+                  What kind of channel do you want?
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={5}
+                  placeholder="e.g. A channel that teaches beginner home cooks quick 15-minute weeknight dinners, upbeat and friendly, for busy parents. Publish daily."
+                  className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/25 outline-none resize-y"
+                  style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                />
+              </div>
+              <div className="flex justify-end">
+                <motion.button
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={generateQuestions}
+                  disabled={busy}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                  style={{ background: "var(--gradient-accent)" }}
+                >
+                  {busy ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                  {busy ? "Thinking…" : "Generate Questions"}
+                </motion.button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Answer */}
+          {step === "answer" && (
+            <div className="rounded-2xl border border-white/[0.07] p-5 space-y-5" style={{ background: "rgba(255,255,255,0.02)" }}>
+              <p className="text-xs text-white/40">
+                Answer what you can — leave anything blank and the AI will decide.
+              </p>
+              {questions.map((q) => (
+                <div key={q.id}>
+                  <label className="text-xs font-medium text-white/60 block mb-1">{q.label}</label>
+                  {q.hint && <p className="text-[11px] text-white/30 mb-2">{q.hint}</p>}
+
+                  {q.type === "text" && (
+                    <input
+                      type="text"
+                      value={answers[q.id] ?? ""}
+                      onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))}
+                      placeholder="Type your answer, or leave blank to let AI decide"
+                      className="w-full px-4 py-2.5 rounded-xl text-sm text-white placeholder-white/25 outline-none"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+                  )}
+
+                  {q.type === "select" && (
+                    <select
+                      value={answers[q.id] ?? ""}
+                      onChange={(e) => setAnswers((p) => ({ ...p, [q.id]: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl text-sm text-white outline-none"
+                      style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                      <option value="" style={{ background: "rgb(var(--surface-rgb))" }}>Let AI decide</option>
+                      {(q.options ?? []).map((o) => (
+                        <option key={o} value={o} style={{ background: "rgb(var(--surface-rgb))" }}>{o}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {q.type === "chips" && (
+                    <div className="flex flex-wrap gap-2">
+                      {(q.options ?? []).map((o) => {
+                        const on = (chipSel[q.id] ?? []).includes(o);
+                        return (
+                          <button
+                            key={o}
+                            onClick={() => toggleChip(q.id, o)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-full text-xs font-semibold border transition-all",
+                              on
+                                ? "bg-gradient-to-r from-brand/20 to-brand-light/10 text-white border-brand/30"
+                                : "border-white/[0.08] text-white/40 hover:text-white/70 hover:border-white/20",
+                            )}
+                          >
+                            {on && <Check size={11} className="inline mr-1 -mt-0.5" />}{o}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  onClick={() => setStep("describe")}
+                  className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
+                >
+                  <ArrowLeft size={13} /> Back
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={generateConfig}
+                  disabled={busy}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                  style={{ background: "var(--gradient-accent)" }}
+                >
+                  {busy ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+                  {busy ? "Generating…" : "Generate Setup"}
+                </motion.button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Review */}
+          {step === "review" && config && (
+            <div className="space-y-4">
+              {/* Brand card */}
+              <div className="rounded-2xl border border-white/[0.07] p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <p className="text-xs font-semibold text-white/50 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-brand" /> Brand
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <ReviewField label="App name" value={config.brand.appName} />
+                  <ReviewField label="Niche" value={config.brand.niche} />
+                  <ReviewField label="Audience" value={config.brand.audience} />
+                  <ReviewField label="Language" value={config.brand.language} />
+                  <ReviewField label="Default tone" value={config.brand.defaultTone} />
+                  <ReviewField label="Subscribe CTA" value={config.brand.commentCtaLine} />
+                </div>
+                {config.brand.purpose && <ReviewField label="Purpose" value={config.brand.purpose} />}
+              </div>
+
+              {/* Channel card */}
+              <div className="rounded-2xl border border-white/[0.07] p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <p className="text-xs font-semibold text-white/50 uppercase tracking-wider flex items-center gap-1.5">
+                  <Youtube size={12} className="text-red-400" /> YouTube Channel
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <ReviewField label="Handle" value={config.brand.youtube?.handle ? `@${config.brand.youtube.handle}` : "—"} />
+                  <ReviewField label="Channel name" value={config.brand.youtube?.channelName} />
+                </div>
+              </div>
+
+              {/* Persona card */}
+              <div className="rounded-2xl border border-white/[0.07] p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <p className="text-xs font-semibold text-white/50 uppercase tracking-wider flex items-center gap-1.5">
+                  <User size={12} className="text-brand" /> Persona
+                </p>
+                <div className="space-y-3 text-sm">
+                  <ReviewField label="Role" value={config.brand.persona?.role} />
+                  <ReviewField label="Voice" value={config.brand.persona?.voice} />
+                </div>
+              </div>
+
+              {/* Content types */}
+              <div className="rounded-2xl border border-white/[0.07] p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <p className="text-xs font-semibold text-white/50 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText size={12} className="text-brand" /> Content types (enabled)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {config.summary.enabledTypes.length === 0 && (
+                    <span className="text-xs text-white/30 italic">None selected</span>
+                  )}
+                  {config.summary.enabledTypes.map((t) => (
+                    <span key={t.id} className="text-xs px-3 py-1.5 rounded-full border border-white/10 text-white/70" style={{ background: "rgba(255,255,255,0.03)" }}>
+                      {t.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Topics */}
+              <div className="rounded-2xl border border-white/[0.07] p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <p className="text-xs font-semibold text-white/50 uppercase tracking-wider flex items-center gap-1.5">
+                  <Activity size={12} className="text-brand" /> Topics ({config.summary.topics.length})
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {config.summary.topics.map((t, i) => (
+                    <span key={i} className="text-xs px-3 py-1.5 rounded-full border border-white/10 text-white/70" style={{ background: "rgba(255,255,255,0.03)" }}>
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Schedule */}
+              <div className="rounded-2xl border border-white/[0.07] p-5 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+                <p className="text-xs font-semibold text-white/50 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock size={12} className="text-brand" /> Schedule
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <ReviewField label="Shorts / day" value={String(config.youtube.postsPerDay)} />
+                  <ReviewField label="Publish times" value={config.youtube.postTimes.join(", ")} />
+                  <ReviewField
+                    label="Days"
+                    value={config.youtube.scheduleDays.map((d) => SETUP_DAY_LABELS[d]).join(", ")}
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setStep("answer")}
+                    className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
+                  >
+                    <ArrowLeft size={13} /> Back
+                  </button>
+                  <button
+                    onClick={generateConfig}
+                    disabled={busy}
+                    className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors disabled:opacity-40"
+                  >
+                    <RotateCw size={12} /> Regenerate
+                  </button>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={applyConfig}
+                  disabled={busy}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-60"
+                  style={{ background: "var(--gradient-accent)" }}
+                >
+                  {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  {busy ? "Applying…" : "Apply Setup"}
+                </motion.button>
+              </div>
+
+              <button
+                onClick={resetFlow}
+                className="text-[11px] text-white/25 hover:text-white/50 transition-colors"
+              >
+                Start over
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function ReviewField({ label, value }: { label: string; value?: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-medium text-white/30 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-sm text-white/80 leading-snug break-words">{value?.trim() || "—"}</p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // BRAND TAB  (white-label identity, persona, colours, topics, hashtag seeds)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2687,7 +3152,7 @@ function ContentTypesTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Tabs whose data is scoped to the currently-selected account (brand).
 const BRAND_SCOPED_TABS = new Set([
-  "brand", "content-types", "prompts", "youtube",
+  "ai-setup", "brand", "content-types", "prompts", "youtube",
 ]);
 
 export default function SettingsPage() {
@@ -2783,6 +3248,7 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {activeTab === "ai-setup"      && <AiSetupTab onGoToTab={selectTab} />}
             {activeTab === "brand"         && <BrandTab />}
             {activeTab === "content-types" && <ContentTypesTab />}
             {activeTab === "appearance"    && <AppearanceTab />}
