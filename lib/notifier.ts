@@ -380,7 +380,9 @@ async function sendViaResend(subject: string, html: string): Promise<void> {
     body: JSON.stringify({
       from:    RESEND_FROM,
       to:      [recipient],
-      subject: `${BRAND_NAME} Alert: ${subject}`,
+      // A leading emoji marks a subject that is already fully formed (digest/
+      // briefing) — everything else gets the brand alert prefix.
+      subject: /^\p{Extended_Pictographic}/u.test(subject) ? subject : `${BRAND_NAME} Alert: ${subject}`,
       html,
     }),
     signal: AbortSignal.timeout(20_000),
@@ -1185,7 +1187,7 @@ export async function sendMorningDigestEmail(p: MorningDigestPayload): Promise<v
     ctaLabel:    "Open Dashboard",
     ctaUrl:      APP_URL,
   });
-  await sendEmail("Morning Digest", html, "morning_digest", true /* skip rate limit */);
+  await sendEmail(`☀️ Morning Digest — ${p.dateLabel}`, html, "morning_digest", true /* skip rate limit */);
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
