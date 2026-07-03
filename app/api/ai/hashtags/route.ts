@@ -4,12 +4,10 @@
  * HONEST tier-based reach estimates (not fabricated per-tag precise numbers).
  * Used by the standalone Hashtags page.
  *
- * Platform-aware (backward compatible — defaults to Instagram):
- *   - Instagram: a reach-tiered MIX of hashtags derived from the specific clinical
- *     entities in the topic (1-2 broad + 2-3 mid-niche + 1-2 long-tail), all on-topic.
- *   - YouTube (platform=youtube|both or youtubeMode): a SMALL set (3-5) of searchable,
- *     content-specific keyword tags + always #shorts, optimized for YT search/suggested.
- * Body: { topic, count?, platform?, youtubeMode? }
+ * YouTube-only: returns a SMALL set (3-5) of searchable, content-specific keyword
+ * tags derived from the specific entities in the topic + always #shorts, optimized
+ * for YouTube search/suggested discovery.
+ * Body: { topic, count? }
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "@/lib/auth";
@@ -42,9 +40,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ success: false, error: "Topic required", data: null }, { status: 400 });
     }
 
-    // Platform targeting (backward compatible — defaults to Instagram)
-    const platform = String(body.platform ?? "instagram").toLowerCase();
-    const targetsYouTube = platform === "youtube" || platform === "both" || body.youtubeMode === true;
+    // YouTube-only edition — keyword/tag generation always targets YouTube.
+    const targetsYouTube = true;
 
     const brand = await getBrand();
     const niche = brand.niche;
@@ -56,18 +53,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     let groups: Record<Cat, string[]> = { HIGH_VOLUME: [], MEDIUM_COMPETITION: [], NICHE: [], TRENDING: [] };
     try {
       const ai  = await getAIClient();
-      const igPrompt =
-        `Generate Instagram hashtags that are STRICTLY relevant to the SPECIFIC subject of this ${niche} post: "${topic}".${seedStr}
-First identify the concrete entities in the topic (the actual terms and concepts) and derive every tag from THOSE — not from generic themes.
-Build a deliberate reach-tier mix so the post is both discoverable and ranked for its exact subject:
-Return ONLY this JSON shape:
-{
-  "HIGH_VOLUME": ["1-2 broad high-volume but still ON-TOPIC ${niche} tags (>500k posts) — e.g. the umbrella topic"],
-  "MEDIUM_COMPETITION": ["2-3 mid-niche ${niche} tags an engaged audience follows (50k-500k posts) — the specific subtopic"],
-  "NICHE": ["1-2 highly-specific long-tail tags (<50k posts) — the exact term in the topic"],
-  "TRENDING": ["1-2 currently-relevant ${niche} tags that still match this exact subject"]
-}
-Rules: all lowercase, start with #, no spaces. Every tag MUST genuinely describe THIS topic's subject — no generic off-topic tags, and NO engagement-bait/banned/spammy tags (#fyp #viral #likeforlike #followme #saveforlater #didyouknow #learnontiktok).`;
       const ytPrompt =
         `Produce a SMALL set of YouTube-search-optimized tags/keywords for a vertical ${niche} YouTube SHORT about: "${topic}".${seedStr}
 YouTube Shorts discovery is keyword/search/suggested-driven, NOT hashtag-flooded — so return only 3-5 searchable, content-specific keyword tags total (plus #shorts), never an Instagram-style 20-tag dump.
@@ -82,7 +67,7 @@ Return ONLY this JSON shape:
 }
 Rules: 3-5 tags TOTAL excluding #shorts is the ceiling — keep it small. All lowercase, start with #, no spaces, keyword-driven and searchable. ALWAYS include #shorts. Every tag must genuinely relate to this exact topic. Do NOT apply Instagram-banned-tag logic and do NOT pad with generic tags.`;
       const raw = await ai.generateContentJSON(
-        targetsYouTube ? ytPrompt : igPrompt,
+        ytPrompt,
         "Return ONLY valid JSON with the four tier arrays. No other text.",
         500,
       );
@@ -167,10 +152,8 @@ Rules: 3-5 tags TOTAL excluding #shorts is the ceiling — keep it small. All lo
         byCategory,
         formattedString: all.map((h) => h.tag).join(" "),
         topic,
-        platform: targetsYouTube ? "youtube" : "instagram",
-        note: targetsYouTube
-          ? "YouTube: a small set of searchable, content-specific keyword tags (+#shorts) for Shorts search/suggested discovery. Reach figures are tier-based estimates, not exact metrics."
-          : "Instagram: a reach-tiered mix of tags derived from this topic's subject. Reach figures are tier-based estimates, not exact metrics.",
+        platform: "youtube",
+        note: "YouTube: a small set of searchable, content-specific keyword tags (+#shorts) for Shorts search/suggested discovery. Reach figures are tier-based estimates, not exact metrics.",
       },
     });
   } catch (error: unknown) {

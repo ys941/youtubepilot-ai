@@ -370,7 +370,7 @@ async function generateSimilarTopics(
     const usedList = [...usedTopics];
     const niche  = brand?.niche?.trim() || "this account's topic";
     const handle = brand ? atHandle(brand) : "this account";
-    const prompt = `You manage a ${niche} Instagram account (${handle}).
+    const prompt = `You manage a ${niche} YouTube channel (${handle}).
 
 EXISTING TOPIC STYLE (match this style, tone, and subject area):
 ${baseTopics.map((t) => `- ${t}`).join("\n")}

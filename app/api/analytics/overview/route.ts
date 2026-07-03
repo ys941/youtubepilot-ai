@@ -202,7 +202,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       error:   null,
       data: {
         overview: {
-          totalPosts:        publishedPosts, // show only published (Instagram-visible) count
+          totalPosts:        publishedPosts, // show only published (publicly-visible) count
           publishedPosts,
           draftPosts,
           scheduledPosts,

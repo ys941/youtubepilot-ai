@@ -48,7 +48,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       POST_CREATED: "Created a post",
       POST_UPDATED: "Updated a post",
       POST_DELETED: "Deleted a post",
-      POST_PUBLISHED: "Published to Instagram",
+      POST_PUBLISHED: "Published to YouTube",
       POST_SCHEDULED: "Scheduled a post",
       SCHEDULE_UPDATED: "Updated schedule",
       SCHEDULE_CANCELLED: "Cancelled schedule",

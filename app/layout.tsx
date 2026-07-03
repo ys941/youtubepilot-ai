@@ -17,10 +17,10 @@ const sora = Sora({
 });
 
 const BRAND_NAME = process.env.BRAND_NAME ?? "YouTubePilot AI";
-const BRAND_TAGLINE = process.env.BRAND_TAGLINE ?? "AI-powered Instagram content automation";
+const BRAND_TAGLINE = process.env.BRAND_TAGLINE ?? "AI-powered YouTube Shorts automation";
 const BRAND_DESCRIPTION =
   process.env.BRAND_TAGLINE ??
-  "AI-powered content automation platform for Instagram. Generate, schedule, and analyze content with Gemini or Grok AI.";
+  "AI-powered content automation platform for YouTube Shorts. Generate, schedule, and analyze content with Gemini or Grok AI.";
 
 export const metadata: Metadata = {
   title: {
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
   description: BRAND_DESCRIPTION,
   keywords: [
     "AI content",
-    "Instagram automation",
+    "YouTube automation",
+    "YouTube Shorts",
     "content creation",
-    "social media",
     "content scheduling",
   ],
   authors: [{ name: BRAND_NAME }],

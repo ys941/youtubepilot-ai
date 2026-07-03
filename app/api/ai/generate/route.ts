@@ -30,9 +30,9 @@ const GenerateSchema = z.object({
   tone: z.enum(["professional", "educational", "engaging", "conversational", "authoritative"]).default("professional"),
   topic: z.string().min(3).max(300),
   customPrompt: z.string().max(1000).optional(),
-  // Platform targeting (backward compatible — defaults to Instagram when absent)
-  platform: z.enum(["instagram", "youtube", "both"]).optional().default("instagram"),
-  youtubeMode: z.boolean().optional().default(false),
+  // Platform targeting — this is the YouTube-only edition, so it always targets YouTube.
+  platform: z.enum(["youtube"]).optional().default("youtube"),
+  youtubeMode: z.boolean().optional().default(true),
 });
 
 // --- AI-DEFAULTS MAPPING ----------------------------------------------------------
@@ -111,7 +111,7 @@ function parseSlideCount(text: string): number | null {
          ?? text.match(/\b(\d+)\b/);
   if (!m) return null;
   const n = parseInt(m[1], 10);
-  // Clamp: Instagram carousel max is 20, min is 2; enforce sensible range
+  // Clamp: carousel max is 20, min is 2; enforce sensible range
   if (n < 2 || n > 20) return null;
   return n;
 }
@@ -165,7 +165,7 @@ function buildSystemPrompt(
       ? "conversational, warm, and accessible"
       : "authoritative and commanding";
 
-  const baseContext = `You are the content brain behind ${handle} -- ${brand.persona.role || `the creator behind this ${niche} account`}, building the most engaging ${niche} account on Instagram. ${brand.purpose} Your content is accurate, visually structured, and engineered for saves and shares.
+  const baseContext = `You are the content brain behind ${handle} -- ${brand.persona.role || `the creator behind this ${niche} account`}, building the most engaging ${niche} channel on YouTube. ${brand.purpose} Your content is accurate, visually structured, and engineered for saves and shares.
 
 ACCOUNT VOICE: ${brand.persona.voice || "Direct. Confident. Sharp."} You make ${niche} instantly clear -- no waffle, no vague generalities. Every sentence earns its place.
 AUDIENCE: ${brand.audience}
@@ -212,11 +212,11 @@ YOUTUBE SHORTS MODE — this content will ALSO be published as a vertical YouTub
 
     EDUCATIONAL: `${baseContext}
 
-Create a beautifully written EDUCATIONAL Instagram post.
+Create a beautifully written EDUCATIONAL YouTube Short.
 
 The "hook" field is the VISUAL CARD HEADLINE -- bold, 6-10 words, impossible to ignore. This appears large on the card.
 
-The "content" field is the full Instagram CAPTION written exactly like ${handle}:
+The "content" field is the full YouTube description written exactly like ${handle}:
 - Open with the hook restated or expanded (1-2 punchy lines)
 - 3-5 bullet points with real data, numbers, and credible references
 - End with a question that invites comments
@@ -226,7 +226,7 @@ Respond with this exact JSON structure:
 {
   "title": "Short SEO title under 60 chars",
   "hook": "Card headline -- 6-10 bold words. No asterisks.",
-  "content": "Full Instagram caption. ${handle} voice. Hook, bullets with real data, engaging question. 200-300 words. No asterisks or markdown.",
+  "content": "Full YouTube description. ${handle} voice. Hook, bullets with real data, engaging question. 200-300 words. No asterisks or markdown.",
   "cta": "Save this post! Share with someone who needs to know this",
   "hashtags": ["25-30 relevant hashtags without the hash symbol -- mix broad and niche ${niche} tags"],
   "imagePrompt": "Clean on-brand background, bold graphic relevant to the topic, educational infographic, 1080x1080",
@@ -240,7 +240,7 @@ Create a QUIZ post styled exactly like ${handle}.
 
 The "hook" field is the QUIZ QUESTION shown large on the card -- precise, 1-2 sentences.
 
-The "content" field is the Instagram caption in this exact format:
+The "content" field is the YouTube description in this exact format:
 Line 1: "QUIZ #[number]"
 Line 2: Restate the question
 Lines 3-6: A. option  B. option  C. option  D. option (each on own line, NO correct-answer markers, NO asterisks, NO tick marks, NO (correct) labels, NO arrows)
@@ -289,7 +289,7 @@ Respond with this exact JSON structure (carouselSlides MUST have exactly ${slide
 {
   "title": "Carousel SEO title",
   "hook": "First slide headline -- 4-7 bold words, makes people stop and swipe. No asterisks.",
-  "content": "Instagram caption -- ${handle} style. 100-180 words. Swipe prompt. Save and share CTA. No asterisks.",
+  "content": "YouTube description -- ${handle} style. 100-180 words. Swipe prompt. Save and share CTA. No asterisks.",
   "cta": "Swipe through all slides! Save for your next shift! Share with a colleague!",
   "hashtags": ["25-30 relevant hashtags"],
   "imagePrompt": "Dark purple-navy background, red gradient border, medical infographic carousel style",
@@ -306,7 +306,7 @@ Create a MYTH vs FACT post debunking a common ${niche} misconception.
 
 The "hook" field is the MYTH shown large on the card -- short, punchy, shocking. What most people incorrectly believe. No asterisks, max 12 words.
 
-The "content" field is the Instagram caption in this format:
+The "content" field is the YouTube description in this format:
 "MYTH: [restate the myth]
 
 FACT: [the evidence-based truth -- cite the study or guideline]
@@ -333,7 +333,7 @@ Create a PRO TIP post -- a high-value, save-worthy insight for your ${niche} aud
 
 The "hook" field is THE TIP ITSELF shown on the card -- one crisp powerful statement someone would screenshot and send to a friend. No asterisks, under 15 words. Use real numbers where possible.
 
-The "content" field is the Instagram caption:
+The "content" field is the YouTube description:
 "PRO TIP -- [topic]
 
 [State the tip clearly with supporting evidence]
@@ -369,7 +369,7 @@ Create a STORY / EXAMPLE post written like a real walkthrough of a real-world sc
 
 The "hook" field is the opener -- dramatic, specific, scroll-stopping.
 
-The "content" field is the Instagram caption:
+The "content" field is the YouTube description:
 "STORY -- [brief topic]
 
 THE SETUP: [the situation / context]
@@ -563,7 +563,7 @@ Create a full REEL SCRIPT for a 30-60 second ${niche} video.
 
 The "hook" field is the TEXT ON SCREEN at 0-3 seconds -- must stop the scroll in under 1 second. Bold claim or shocking question. No asterisks.
 
-The "content" field is the Instagram CAPTION for the reel post (not the script). Hook, brief context, CTA. 100-160 words. No asterisks.
+The "content" field is the YouTube description for the Short (not the script). Hook, brief context, CTA. 100-160 words. No asterisks.
 
 The "reelScript" field is the FULL VIDEO SCRIPT in this exact format:
 [0-3s] TEXT ON SCREEN: [bold text]
@@ -588,12 +588,12 @@ AUDIO: [music or sound recommendation]
 
 Respond with this exact JSON structure:
 {
-  "title": "Reel title -- [topic]",
+  "title": "Short title -- [topic]",
   "hook": "3-second screen text hook -- bold, stops scroll immediately. No asterisks.",
-  "content": "Reel caption -- hook, brief context, CTA. 100-160 words. No asterisks.",
-  "cta": "Follow for more reels! Save this! Comment your thoughts!",
-  "hashtags": ["25-30 hashtags -- reels and ${niche} focused"],
-  "imagePrompt": "On-brand thumbnail concept, ${niche} reel visual, education video aesthetic",
+  "content": "Short description -- hook, brief context, CTA. 100-160 words. No asterisks.",
+  "cta": "Subscribe for more! Comment your thoughts!",
+  "hashtags": ["3-5 keyword tags -- ${niche} focused, plus #shorts"],
+  "imagePrompt": "On-brand thumbnail concept, ${niche} Short visual, education video aesthetic",
   "reelScript": "FULL REEL SCRIPT in the exact timestamped format described above",
   "viralScore": 0.88,
   "carouselSlides": null
@@ -821,21 +821,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { type, tone, topic, customPrompt, platform, youtubeMode } = validation.data;
 
-    // YouTube is targeted when platform is youtube/both, or the explicit flag is set
-    const targetsYouTube = platform === "youtube" || platform === "both" || youtubeMode === true;
-    const targetsInstagram = platform === "instagram" || platform === "both";
+    // YouTube-only edition — every generation targets YouTube.
+    const targetsYouTube = platform === "youtube" || youtubeMode === true;
 
     // Check for a user-saved custom prompt override for this post type (per brand).
     const savedPrompts    = prefs.prompts ?? {};
     const savedTypePrompt = savedPrompts[type] ?? null;
 
-    // PREPEND the brand's per-account default content prompt(s):
-    //   IG/both → igDefaultPrompt, YouTube/both → ytDefaultPrompt.
-    // These steer generation toward the brand's voice/topic. Empty → no-op (legacy).
+    // PREPEND the brand's per-account default YouTube content prompt — steers
+    // generation toward the brand's voice/topic. Empty → no-op (legacy).
     const prefixes: string[] = [];
-    if (targetsInstagram && (prefs.igDefaultPrompt ?? "").trim()) {
-      prefixes.push((prefs.igDefaultPrompt ?? "").trim());
-    }
     if (targetsYouTube && (prefs.ytDefaultPrompt ?? "").trim()) {
       prefixes.push((prefs.ytDefaultPrompt ?? "").trim());
     }

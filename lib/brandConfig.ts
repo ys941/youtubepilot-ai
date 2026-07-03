@@ -134,14 +134,14 @@ export const DEFAULT_CONTENT_TYPES: Record<ContentTypeId, ContentTypeConfig> = {
   PREVENTIVE:       { label: "How-To / Tips", description: "Actionable steps or a checklist your audience can apply.",   prompt: "", enabled: true  },
   CTA:              { label: "Call to Action", description: "Community-building, follow-for-more, value-forward post.",  prompt: "", enabled: true  },
   REEL:             { label: "Reel",          description: "A short-form video script with on-screen text + voiceover.", prompt: "", enabled: true  },
-  STORY:            { label: "Story",         description: "A quick daily Instagram Story.",                             prompt: "", enabled: true  },
+  STORY:            { label: "Story",         description: "A quick daily short-form story video.",                       prompt: "", enabled: true  },
 };
 
 export const NEUTRAL_DEFAULT: BrandConfig = {
   appName: "YouTubePilot AI",
-  tagline: "AI-powered Instagram content automation",
+  tagline: "AI-powered YouTube Shorts automation",
   niche: "your topic",
-  purpose: "Grow an engaged Instagram audience with consistent, high-quality content.",
+  purpose: "Grow an engaged YouTube audience with consistent, high-quality Shorts.",
   audience: "people interested in your topic",
   language: "English",
   defaultTone: "Friendly",
@@ -274,17 +274,15 @@ export function ytChannelName(brand: BrandConfig): string {
 export function dualFollowCTA(brand: BrandConfig): string {
   const parts: string[] = [];
   const yt = (brand.youtube?.handle || "").replace(/^@/, "").trim();
-  const ig = (brand.persona.handle || "").replace(/^@/, "").trim();
   if (yt) parts.push(`YouTube: @${yt}`);
-  if (ig) parts.push(`Instagram: @${ig}`);
-  return parts.length ? `Follow us — ${parts.join("  •  ")}` : (brand.commentCtaLine || "Follow for more!");
+  return parts.length ? `Follow us — ${parts.join("  •  ")}` : (brand.commentCtaLine || "Subscribe for more!");
 }
 
 /**
  * Base system prompt for content generation, driven by the active brand.
  */
 export function buildBrandSystemPrompt(brand: BrandConfig): string {
-  return `You are ${brand.appName}, an expert ${brand.niche} content creator specialising in Instagram content.
+  return `You are ${brand.appName}, an expert ${brand.niche} content creator specialising in YouTube Shorts.
 
 ACCOUNT: ${atHandle(brand)} — ${brand.purpose}
 AUDIENCE: ${brand.audience}
@@ -292,9 +290,9 @@ LANGUAGE: ${brand.language}
 
 Your content style:
 - Accurate, valuable, and genuinely useful to the audience
-- Engaging and easy to read, written for the Instagram feed
-- Creates scroll-stopping hooks that capture attention
-- Optimised for saves, shares, and the Instagram algorithm
+- Engaging and easy to read, written for vertical short-form video
+- Creates scroll-stopping hooks that capture attention in the first seconds
+- Optimised for watch time, likes, comments, and the YouTube algorithm
 - Tone: ${brand.defaultTone}
 
 Always respond in valid JSON format unless instructed otherwise.`;
