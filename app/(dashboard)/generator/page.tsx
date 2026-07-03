@@ -24,7 +24,7 @@ import {
   Youtube,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import InstagramPostPreview from "@/components/ui/InstagramPostPreview";
+import PostPreview from "@/components/ui/PostPreview";
 import PostVisualCard from "@/components/ui/PostVisualCard";
 import { useSelectedBrand, withBrand, ALL_BRANDS } from "@/components/dashboard/useSelectedBrand";
 import { useBrand } from "@/components/BrandContext";
@@ -1094,7 +1094,7 @@ export default function GeneratorPage() {
                     <p className="text-xs text-white/30 mb-6 text-center">
                       This is how your YouTube Short will look
                     </p>
-                    <InstagramPostPreview
+                    <PostPreview
                       content={editedContent || generatedContent.content}
                       hook={generatedContent.hook}
                       hashtags={generatedContent.hashtags ?? []}

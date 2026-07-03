@@ -7,7 +7,7 @@
  *   -- Gold header / slide counter
  *   -- Bold white headline
  *   -- Body text as bullet points
- *   -- @interventional_heart watermark
+ *   -- brand-handle watermark
  *
  * Uses Satori (JSX -> SVG) + Sharp (SVG -> JPEG buffer).
  * Fonts loaded from local public/fonts/ (WOFF, NOT woff2 -- Satori rejects woff2).
@@ -429,7 +429,7 @@ export async function generateAllSlideBuffers(
 //      the whole Short — hook, slides, outro — shares ONE cohesive look).
 //    - Top row: eyebrow brand on the left + "NN / NN" slide counter on the right.
 //    - Center: the slide's KEY POINT as LARGE, bold, readable white text.
-//    - Bottom: @interventional_heart watermark + pulse accent.
+//    - Bottom: brand-handle watermark + pulse accent.
 //  Rendered with satori → sharp (container-safe; NO raw SVG / feDropShadow).
 // ============================================================================
 
@@ -555,7 +555,7 @@ function buildShortSlideVertical(
           },
         },
 
-        // ── BOTTOM: pulse accent + @interventional_heart watermark ───────────
+        // ── BOTTOM: pulse accent + brand-handle watermark ───────────
         {
           type: "div",
           props: {

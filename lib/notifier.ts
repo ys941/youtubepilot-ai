@@ -6,11 +6,11 @@
  * TWO delivery modes:
  *   1. REAL-TIME — fires immediately for critical events:
  *        - Post publish failure
- *        - Instagram / AI API rate limit hit
+ *        - YouTube / AI API rate limit hit
  *        - API health degraded (token invalid, DB down, AI down)
  *        - Any other critical system error
  *   2. DAILY DIGEST — one comprehensive email at 9 AM IST with:
- *        - System health status (DB, AI, Instagram)
+ *        - System health status (DB, AI, YouTube)
  *        - 24-hour activity summary (published, failed, comments, DMs)
  *        - Failed posts from the last 24 h (with error messages)
  *        - Rate limit events from the last 24 h
@@ -442,7 +442,7 @@ export async function notifyPostFailed(opts: {
     accentColor: "#ef4444",
     icon:        "📵",
     heading:     `${kind} Failed to Publish`,
-    subheading:  "An Instagram publishing attempt failed. Review the details below and check Railway logs.",
+    subheading:  "A YouTube publishing attempt failed. Review the details below and check Railway logs.",
     badgeLabel:  "🚨 Publish Error",
     badgeColor:  "#ef4444",
     body: `
@@ -461,7 +461,7 @@ export async function notifyPostFailed(opts: {
   await sendEmail(`${kind} Publish Failed — ${title}`, html, `post_failed:${postId}`);
 }
 
-/** REAL-TIME: Alert when Instagram or AI API rate limits are hit. */
+/** REAL-TIME: Alert when YouTube or AI API rate limits are hit. */
 export async function notifyRateLimit(opts: {
   service: string;
   detail?: string;
@@ -536,34 +536,6 @@ export async function notifyApiHealthDegraded(opts: {
   await sendEmail(`${service} Health Degraded`, html, `health_degraded:${service}`);
 }
 
-/** REAL-TIME: Alert when the Instagram webhook stops delivering events. */
-export async function notifyWebhookIssue(detail: string): Promise<void> {
-  logSystemErrorEvent("Instagram Webhook Issue", detail);
-
-  const html = emailWrapper({
-    accentColor: "#8b5cf6",
-    icon:        "🔌",
-    heading:     "Instagram Webhook Issue",
-    subheading:  "Webhook events may have stopped. Comment and DM automation could be affected.",
-    badgeLabel:  "⚠️ Webhook",
-    badgeColor:  "#8b5cf6",
-    body: `
-      ${infoTable([
-        ["Status",  "Webhook delivery interrupted"],
-        ["Time",    toIST(new Date()) + " IST"],
-        ["Impact",  "Comment replies · DM automation · Engagement tracking"],
-      ])}
-      <div style="background:#8b5cf60d;border:1px solid #8b5cf633;border-left:3px solid #8b5cf6;
-                  border-radius:8px;padding:14px 16px;margin-bottom:20px;">
-        <p style="margin:0;font-size:12px;color:#c4b5fd;line-height:1.6;">${detail}</p>
-      </div>
-      ${tipBox("Go to <strong style=\"color:#94a3b8;\">Meta Business Suite → App Settings → Webhooks</strong> and verify the subscription is active and the callback URL is reachable.")}
-    `,
-    ctaLabel: "Webhook Settings",
-    ctaUrl:   `${APP_URL}/settings`,
-  });
-  await sendEmail("Instagram Webhook Issue", html, "webhook_issue");
-}
 
 /** REAL-TIME: Generic critical error alert. */
 export async function notifySystemError(opts: {
@@ -598,7 +570,7 @@ export async function notifySystemError(opts: {
 // YOUTUBE EVENTS — real-time SSE push (+ email for publish/failure)
 // ════════════════════════════════════════════════════════════════════════════════
 //
-// These mirror the Instagram notification shapes so the UI renders them
+// These mirror the notification shapes so the UI renders them
 // consistently. Each emits a LiveNotif on the SSE stream (instant) and bumps the
 // webhook counter; publish + failure also send an email. All best-effort — they
 // never throw into the publish flow.
@@ -628,7 +600,7 @@ export async function notifyYouTubePublished(opts: {
   const { spId, videoId, title = "Untitled", isStory = false } = opts;
   const url = youtubeShortUrl(videoId);
 
-  // Instant SSE push — "success" type, matching the Instagram publish shape.
+  // Instant SSE push — "success" type, matching the publish shape.
   emitLiveNotif({
     id:        `yt_pub:${videoId}`,
     type:      "success",
@@ -699,7 +671,7 @@ export async function notifyYouTubeFailed(opts: {
   // Log for daily digest (matches existing youtube-failure logging shape).
   logSystemErrorEvent(`${context} Publish Failed: ${title}`, error);
 
-  // Instant SSE push — "error" type, matching the Instagram failure shape.
+  // Instant SSE push — "error" type, matching the failure shape.
   emitLiveNotif({
     id:        `yt_fail:${spId}:${Date.now()}`,
     type:      "error",
@@ -824,7 +796,7 @@ export async function sendDailyHealthReport(opts: {
   // Auto-post (mirror) status
   const ytAutoLabel = ytEnabled ? "Auto-mirror ON" : "Auto-mirror OFF";
 
-  // ── Instagram Webhook status (Feature 3) ──────────────────────────────────
+  // ── YouTube API status (Feature 3) ──────────────────────────────────
   // Healthy ⇒ configured AND a webhook comment event arrived within the last 10 min.
   // When configured but idle we still show OK-ish wording (no events ≠ broken), but
   // surface "configured, no recent events" so the owner can tell at a glance.
@@ -1214,10 +1186,9 @@ export async function sendTestEmail(): Promise<{ ok: boolean; error?: string }> 
                   border-radius:8px;padding:14px 16px;margin-bottom:20px;">
         <p style="margin:0;font-size:13px;color:#6ee7b7;line-height:1.7;">
           🎉 &nbsp;Everything looks great! You will now receive instant email alerts for:<br/>
-          <span style="color:#34d399;">•</span> Failed post / reel / story publishing<br/>
-          <span style="color:#34d399;">•</span> Instagram or AI API rate limits<br/>
+          <span style="color:#34d399;">•</span> Failed Short / video publishing<br/>
+          <span style="color:#34d399;">•</span> YouTube or AI API rate limits<br/>
           <span style="color:#34d399;">•</span> API health degradation (token expired, DB down, AI down)<br/>
-          <span style="color:#34d399;">•</span> Webhook delivery interruptions<br/>
           <span style="color:#34d399;">•</span> Any other critical system errors<br/>
           <span style="color:#34d399;">•</span> Daily 9 AM digest with everything in one email
         </p>

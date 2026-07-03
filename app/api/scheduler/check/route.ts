@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { publishOverdueScheduled } from "@/lib/catchup";
 import { notifySystemError } from "@/lib/notifier";
@@ -10,13 +10,38 @@ let _lastCheckAt: Date | null = null;
 const SCHEDULER_CHECK_INTERVAL_MS = 20_000;
 
 /**
+ * Same-site guard for this state-changing GET. The dashboard calls it via fetch
+ * (same-origin), so a cross-site page must not be able to trigger a publish.
+ * Accept the request only when it is provably same-site:
+ *   • Sec-Fetch-Site is "same-origin" / "same-site" / "none" (direct nav), OR
+ *   • the Origin/Referer host matches the request host.
+ * Reject everything else with 403.
+ */
+function isSameSite(request: NextRequest): boolean {
+  const secSite = request.headers.get("sec-fetch-site");
+  if (secSite) return secSite === "same-origin" || secSite === "same-site" || secSite === "none";
+  const host = request.headers.get("host");
+  const src  = request.headers.get("origin") || request.headers.get("referer");
+  if (!src) return false; // no Origin/Referer and no Sec-Fetch-Site → treat as cross-site
+  try {
+    return new URL(src).host === host;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * GET /api/scheduler/check
  * Called by the dashboard layout every 30 seconds.
  * Publishes any PENDING scheduled posts whose scheduledFor time has passed.
  * This is separate from runCatchup() so it runs on a tight loop without
  * the 5-minute full-catchup debounce.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!isSameSite(request)) {
+    return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+  }
+
   const now = new Date();
 
   if (_lastCheckAt && now.getTime() - _lastCheckAt.getTime() < SCHEDULER_CHECK_INTERVAL_MS) {
@@ -36,8 +61,8 @@ export async function GET() {
       return NextResponse.json({ success: true, published: 0, failed: 0 });
     }
 
-    // YouTube-only: no Instagram credentials needed. The catchup publisher runs the
-    // YouTube branch regardless; pass empty IG creds for the legacy overload.
+    // YouTube-only: the catchup publisher runs the YouTube branch regardless;
+    // pass empty legacy-overload args.
     const { published, failed } = await publishOverdueScheduled(errors, "", "");
     return NextResponse.json({ success: true, published, failed, errors });
   } catch (err: any) {

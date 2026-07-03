@@ -184,17 +184,10 @@ CAPTION WRITING RULES -- follow exactly:
 CONTENT STANDARD: Every claim must be accurate. Real numbers only. Write like a knowledgeable expert teaching a peer -- rigorous but human.
 
 HASHTAG RULES (the "hashtags" array) -- follow exactly:
-${
-    targetsYouTube
-      ? `- This content targets YOUTUBE SHORTS. Shorts discovery is keyword/search/suggested-driven, NOT hashtag-flooded.
+- This content targets YOUTUBE SHORTS. Shorts discovery is keyword/search/suggested-driven, NOT hashtag-flooded.
 - Return a SMALL set of 3-5 searchable, content-specific keyword tags (NOT 25-30), and ALWAYS include #shorts.
 - Base each keyword on the SPECIFIC subject of this topic (the actual terms and concepts) -- what a viewer would type into YouTube to find THIS subject.
-- No Instagram-style tag dumps, no generic padding, no engagement-bait/banned tags.`
-      : `- These are INSTAGRAM hashtags. Under the 2025 algorithm, relevance ranks the post into the right topic -- raw volume does not boost reach.
-- Derive EVERY tag from the SPECIFIC subject of this post (the actual terms and concepts) -- never generic or off-topic.
-- Use a deliberate reach-tier MIX of ~12-18 tags: 1-2 broad-but-on-topic (umbrella ${niche} tag) + 5-7 mid-niche (the specific subtopic an engaged audience follows) + 4-6 highly-specific long-tail.
-- NO engagement-bait, banned, or spammy tags (#fyp #viral #likeforlike #followme #saveforlater #didyouknow #learnontiktok). Output tags WITHOUT the # symbol as instructed in the JSON shape.`
-  }
+- No tag dumps, no generic padding, no engagement-bait/banned tags.
 
 You MUST respond with a valid JSON object only. No markdown code blocks. No preamble.${
     targetsYouTube

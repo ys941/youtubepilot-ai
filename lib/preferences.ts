@@ -59,16 +59,6 @@ export interface DayScheduleEntry {
   enabled:     boolean;   // false → generate nothing that day
   postsPerDay: number;    // 1–5
   times:       string[];  // ["08:00","19:00"]
-  /**
-   * Optional per-day Instagram-Reel publish times ("HH:MM"). ONLY meaningful on the
-   * YouTube `dailySchedule` (the IG auto-poster ignores it). When this day is "Custom"
-   * and this list is NON-EMPTY, a YT→IG cross-posted Reel for this weekday is DEFERRED
-   * to one of these slots (one Reel time per Short ideally). Empty/absent → fall back
-   * to the global `youtube.reelPublishTimes`. Carried through only for the YouTube
-   * section (sanitizeDailySchedule(raw, { withReelTimes:true })); omitted elsewhere so
-   * the Auto-Post schedule is byte-identical to before.
-   */
-  reelTimes?:  string[];
 }
 
 export interface AutoPostSettings {
@@ -131,8 +121,6 @@ export interface YouTubeSettings {
   postTimes: string[];
   /** Which days to publish (0=Sun ... 6=Sat). */
   scheduleDays: number[];
-  /** ON → YouTube-native auto-posts also publish to Instagram as Reels. */
-  publishToInstagram: boolean;
   /** ON → narrate each Short with an AI voice and optionally burn in word-by-word captions (beta, opt-in). */
   voiceover?: boolean;
   /** Which AI narration voice. Orpheus: female (autumn, diana, hannah) · male (austin, daniel, troy). */
@@ -155,13 +143,6 @@ export interface YouTubeSettings {
    * Days/Times are ignored). Default false → unchanged behaviour (global fallback).
    */
   customScheduleOnly?: boolean;
-  /**
-   * Separate Instagram-Reel publish time(s) ("HH:MM") for YT→IG cross-posts. When
-   * NON-EMPTY and youtube.publishToInstagram is on, a published Short's Instagram Reel
-   * is DEFERRED to the next upcoming time here (scheduled, not published immediately).
-   * Empty/absent → the Reel cross-posts immediately (current behaviour).
-   */
-  reelPublishTimes?: string[];
 }
 
 /**
@@ -266,13 +247,11 @@ export const DEFAULTS: AllPreferences = {
     customPromptExtra: "",
     postTimes:         ["19:00"],
     scheduleDays:      [0, 1, 2, 3, 4, 5, 6],
-    publishToInstagram: false,
     voiceover:         false,   // opt-in: AI voiceover + optional word-by-word captions (beta)
     voiceoverVoice:    "daniel", // default male narration voice (Orpheus)
     burnCaptions:      false,   // OFF → let YouTube auto-caption + auto-translate per viewer location
     dailySchedule:     [],   // empty → fall back to the global fields above
     customScheduleOnly: false,   // true → skip days with no custom entry (ignore global)
-    reelPublishTimes:  [],   // empty → cross-post Reels immediately (current behaviour)
   },
   morningDigest: {
     enabled:       false,   // opt-in
@@ -341,16 +320,8 @@ export function resolveDaySchedule(
  * Validate + normalise a raw `dailySchedule` array from a settings POST body.
  * Drops invalid days, clamps postsPerDay to 1–5, keeps only HH:MM times, and
  * de-dupes by weekday. Returns `[]` for non-arrays.
- *
- * `opts.withReelTimes` (YouTube section ONLY) additionally carries each day's
- * per-day Instagram-Reel times (HH:MM, validated). When false/omitted the
- * `reelTimes` field is dropped entirely so the Auto-Post schedule stays
- * byte-identical to before (backward compatible).
  */
-export function sanitizeDailySchedule(
-  raw: unknown,
-  opts: { withReelTimes?: boolean } = {},
-): DayScheduleEntry[] {
+export function sanitizeDailySchedule(raw: unknown): DayScheduleEntry[] {
   if (!Array.isArray(raw)) return [];
   const byDay = new Map<number, DayScheduleEntry>();
   for (const item of raw) {
@@ -369,22 +340,9 @@ export function sanitizeDailySchedule(
       postsPerDay,
       times,
     };
-    if (opts.withReelTimes) {
-      // Preserve Reel-slot ORDER (do NOT sort/dedupe-then-sort) so the catchup
-      // slot mapping reelTimes[count] follows the user's intended sequence.
-      entry.reelTimes = Array.isArray(o.reelTimes)
-        ? (o.reelTimes as unknown[]).filter((t): t is string => typeof t === "string" && HHMM_RE.test(t))
-        : [];
-    }
     byDay.set(day, entry);
   }
   return [...byDay.values()].sort((a, b) => a.day - b.day);
-}
-
-/** Validate + normalise a raw `reelPublishTimes` array (HH:MM list). */
-export function sanitizeTimeList(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  return Array.from(new Set(raw.filter((t): t is string => typeof t === "string" && HHMM_RE.test(t)))).sort();
 }
 
 /**

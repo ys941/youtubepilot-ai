@@ -90,7 +90,7 @@ export interface GrokResponse {
 
 // Generic, niche-agnostic default. Route handlers that have loaded a brand pass
 // a brand-driven system prompt (buildBrandSystemPrompt) instead of relying on this.
-const CARDIOLOGY_SYSTEM_PROMPT = `You are an expert Instagram content creator. You craft accurate, valuable, engaging content optimised for the Instagram feed, with scroll-stopping hooks designed for saves, shares, and reach. Always respond in valid JSON format unless instructed otherwise.`;
+const DEFAULT_SYSTEM_PROMPT = `You are an expert short-form video content creator. You craft accurate, valuable, engaging content optimised for YouTube Shorts, with scroll-stopping hooks designed for retention, shares, and reach. Always respond in valid JSON format unless instructed otherwise.`;
 
 const POST_TYPE_PROMPTS: Record<PostType, string> = {
   educational:
@@ -303,7 +303,7 @@ export class GrokClient {
    */
   async generateContent(
     prompt: string,
-    systemPrompt = CARDIOLOGY_SYSTEM_PROMPT,
+    systemPrompt = DEFAULT_SYSTEM_PROMPT,
     maxTokens = 2000
   ): Promise<string> {
     const messages: Message[] = [
@@ -321,7 +321,7 @@ export class GrokClient {
    */
   async generateContentJSON(
     prompt: string,
-    systemPrompt = CARDIOLOGY_SYSTEM_PROMPT,
+    systemPrompt = DEFAULT_SYSTEM_PROMPT,
     maxTokens = 2000
   ): Promise<string> {
     const messages: Message[] = [
@@ -352,7 +352,7 @@ export class GrokClient {
     data: string,      // raw base64, no data: prefix
     mimeType: string,  // e.g. "image/jpeg"
     prompt: string,
-    systemPrompt = CARDIOLOGY_SYSTEM_PROMPT,
+    systemPrompt = DEFAULT_SYSTEM_PROMPT,
     maxTokens = 1000,
   ): Promise<string> {
     const resp = await this.client.post<GrokResponse>("/chat/completions", {
@@ -388,18 +388,18 @@ export class GrokClient {
     const prompt = `${typePrompt}.${topicClause}
 
 Tone: ${tone}
-Platform: Instagram
+Platform: YouTube Shorts
 Audience: ${brand.audience}
 
 Return a JSON object with exactly these fields:
 {
   "title": "Attention-grabbing post title (max 10 words)",
-  "content": "Full Instagram caption (200-400 words, use emojis sparingly, include line breaks)",
+  "content": "Full video caption/description (200-400 words, use emojis sparingly, include line breaks)",
   "hook": "First 2 lines that stop the scroll (max 30 words)",
   "cta": "Call to action (max 20 words)",
   "hashtags": ["array", "of", "30", "relevant", "hashtags", "without", "hash"],
   "imagePrompt": "Detailed prompt for generating an illustration or image (100 words)",
-  "reelScript": "30-second reel script with scene descriptions and voiceover text",
+  "reelScript": "30-second Short script with scene descriptions and voiceover text",
   "viralScore": 85,
   "engagementPrediction": {
     "likes": "500-800",

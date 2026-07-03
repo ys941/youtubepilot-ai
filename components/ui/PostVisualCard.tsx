@@ -973,7 +973,7 @@ function ReelCard({ hook, reelScript, cta }: { hook: string; reelScript?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 11. CAROUSEL  -  matches actual @interventional_heart carousel style
+// 11. CAROUSEL  -  matches the brand carousel style
 // ─────────────────────────────────────────────────────────────────────────────
 function CarouselCardCompact({
   slides,
@@ -1143,7 +1143,7 @@ export default function PostVisualCard({
       const typeLabel = postType.toLowerCase().replace(/_/g, " ");
       const nicheText = brand.niche && brand.niche !== "your topic" ? brand.niche : "lifestyle";
       const fullPrompt = [
-        `professional ${nicheText} Instagram post`,
+        `professional ${nicheText} video thumbnail`,
         "modern dark background",
         "bold accent colors",
         `${typeLabel} visual style`,

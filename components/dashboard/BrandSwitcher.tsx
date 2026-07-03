@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Check, Instagram, Youtube, Layers, Building2 } from "lucide-react";
+import { ChevronDown, Check, Youtube, Layers, Building2 } from "lucide-react";
 import { useSelectedBrand, ALL_BRANDS, type BrandRecord } from "./useSelectedBrand";
 
 function BrandIcon({ brand }: { brand: BrandRecord }) {
@@ -128,11 +128,6 @@ export default function BrandSwitcher() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        {b.igUsername && (
-                          <span className="flex items-center gap-1 text-[10px] text-white/35">
-                            <Instagram size={9} /> {b.igUsername}
-                          </span>
-                        )}
                         {b.hasYouTube && (
                           <span className="flex items-center gap-1 text-[10px] text-white/35">
                             <Youtube size={9} /> {b.ytChannelTitle || "YouTube"}

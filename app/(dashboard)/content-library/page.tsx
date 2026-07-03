@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
-import InstagramPostPreview from "@/components/ui/InstagramPostPreview";
+import PostPreview from "@/components/ui/PostPreview";
 import { useSelectedBrand, withBrand } from "@/components/dashboard/useSelectedBrand";
 
 // ─── Types ────────────────────────────────────────────────────
@@ -47,7 +47,6 @@ interface Post {
   scheduledAt?: string;
   reach?: string;
   mediaUrls?: string[];
-  instagramPostId?: string;
 }
 
 interface ApiResponse {
@@ -244,7 +243,7 @@ function PreviewModal({ post, onClose, onDelete, onPublish, onSchedule, isPublis
           {/* LEFT: post preview */}
           <div className="flex-shrink-0">
             <p className="text-[10px] text-white/30 uppercase tracking-wider mb-4 text-center">Preview</p>
-            <InstagramPostPreview
+            <PostPreview
               content={post.content}
               hook={post.hook}
               hashtags={post.hashtags ?? []}

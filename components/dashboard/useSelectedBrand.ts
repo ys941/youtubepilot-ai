@@ -3,9 +3,9 @@
 /**
  * useSelectedBrand — client hook for multi-brand (multi-account) support.
  *
- * A "brand" = a paired Instagram account + YouTube channel. The env-seeded
- * account is the PRIMARY brand. This hook is the single source of truth for
- * which brand the dashboard is currently scoped to.
+ * A "brand" = one white-label YouTube channel account. The env-seeded account
+ * is the PRIMARY brand. This hook is the single source of truth for which brand
+ * the dashboard is currently scoped to.
  *
  * It:
  *   - loads the brand list from `GET /api/brands`

@@ -33,7 +33,7 @@ export interface ClientBrand {
 
 const NEUTRAL: ClientBrand = {
   appName: "YouTubePilot AI",
-  tagline: "AI-powered Instagram content automation",
+  tagline: "AI-powered YouTube Shorts automation",
   niche: "your topic",
   handle: "yourhandle",
   displayName: "the creator",

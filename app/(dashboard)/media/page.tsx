@@ -40,7 +40,7 @@ interface QueuedFile {
   postType:     string;
   /** For QUIZ/ECG_QUIZ/ANGIOGRAPHY_QUIZ: user-provided correct answer.
    *  Format: "<letter>|<full answer text>"  e.g. "B|Atrial Fibrillation with RVR"
-   *  Stored in Post.reelScript as "QUIZ_ANS:..." — never appears in Instagram caption. */
+   *  Stored in Post.reelScript as "QUIZ_ANS:..." — never appears in the caption. */
   quizAnswer:   string;
   status:       "idle" | "uploading" | "done" | "error";
   error?:       string;

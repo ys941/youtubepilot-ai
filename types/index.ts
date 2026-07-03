@@ -288,28 +288,3 @@ export interface UIState {
   theme: "dark" | "light";
 }
 
-// --- Instagram ------------------------------------------------
-export interface InstagramMedia {
-  id: string;
-  mediaType: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
-  mediaUrl: string;
-  thumbnailUrl?: string;
-  caption?: string;
-  timestamp: string;
-  permalink: string;
-  likeCount: number;
-  commentsCount: number;
-}
-
-export interface InstagramAccount {
-  id: string;
-  username: string;
-  name: string;
-  biography: string;
-  followersCount: number;
-  followsCount: number;
-  mediaCount: number;
-  profilePictureUrl: string;
-  website?: string;
-}
-
