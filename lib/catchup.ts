@@ -1345,9 +1345,9 @@ export async function runAutoGenerateYouTube(ctxArg?: BrandContext): Promise<Gen
         `\n\nDURATION â€” SIZE THE NARRATED CONTENT TO â‰ˆ${plan.target} SECONDS (critical):
 This Short must run about ${plan.target} seconds when the "content" card text is read aloud.
 - Write EXACTLY ${plan.points} content point(s) in the "content" field â€” no more, no fewer. This point count OVERRIDES any "~5-7 points" (or similar) count mentioned in the IMAGE-CARD REQUIREMENT above.
-- Each point is ONE punchy, high-impact spoken line of â‰¤ ${plan.wordsPerPoint} spoken words.
+- Each point is ONE COMPLETE, beautifully-written sentence of about ${Math.max(9, plan.wordsPerPoint - 4)}â€“${plan.wordsPerPoint} words â€” smooth, vivid and high-impact, that flows when read aloud (NOT a terse fragment or a bare "42% of people…" stat). Weave the specific number/stat naturally INTO a real sentence with a subject and verb, and make it genuinely pleasant to read.
 - The WHOLE narration (hook + the ${plan.points} points + CTA) should total â‰ˆ ${plan.totalWords} words.
-- A shorter target means FEWER, PUNCHIER points â€” keep every line tight, concrete, and worth saying. This is a SOFT target: a genuinely rich point may run slightly over, but do NOT pad or add filler to hit the number.
+- Fewer points is fine for a shorter target, but every point must be a full, polished sentence â€” concrete, elegant, and worth saying. This is a SOFT target: a genuinely rich point may run slightly over; do NOT pad with filler, but DO write in complete sentences rather than clipped fragments.
 - This duration budget applies ONLY to the narrated card "content". The "caption" field can stay rich, long, and detailed as specified below â€” do NOT shorten the caption to fit the duration.`;
 
       try {
