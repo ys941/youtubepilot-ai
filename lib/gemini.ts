@@ -485,7 +485,7 @@ export class GeminiClient {
     const instruction = typeInstructions[postType] ?? typeInstructions["EDUCATIONAL"];
     const mediaPart: Part = { inlineData: { data: media.data, mimeType: media.mimeType as any } };
     const textPart:  Part = {
-      text: `You are a world-class ${brand.niche} Instagram content creator analysing this image/video for the account ${atHandle(brand)}.
+      text: `You are a world-class ${brand.niche} YouTube content creator analysing this image/video for the account ${atHandle(brand)}.
 
 Post type: ${postType}
 Niche: ${brand.niche}. Audience: ${brand.audience}.
@@ -496,7 +496,7 @@ Rules:
 - Start with a HOOK line that stops the scroll. Use line breaks (\\n) between sections
 - NO hashtags in the caption text. No asterisks, no markdown. End with a strong CTA.
 
-After the caption, output exactly 4 relevant Instagram hashtags starting with #.
+After the caption, output exactly 4 relevant YouTube search tags starting with #.
 Return ONLY valid JSON: { "caption": "...", "hashtags": ["#tag1","#tag2","#tag3","#tag4"] }`,
     };
 
@@ -504,7 +504,7 @@ Return ONLY valid JSON: { "caption": "...", "hashtags": ["#tag1","#tag2","#tag3"
       return await this.withFallback("analyzeMedia", async (model) => {
         const m = this.genAI.getGenerativeModel({
           model,
-          systemInstruction: `You are a ${brand.niche} Instagram content expert. Return only valid JSON.`,
+          systemInstruction: `You are a ${brand.niche} YouTube content expert. Return only valid JSON.`,
           generationConfig:  { maxOutputTokens: 800, temperature: 0.7 },
         });
         const result = await m.generateContent([textPart, mediaPart]);
@@ -555,7 +555,7 @@ Return ONLY valid JSON: { "caption": "...", "hashtags": ["#tag1","#tag2","#tag3"
     const instruction = typeInstructions[postType] ?? typeInstructions["EDUCATIONAL"];
     const mediaPart: Part = { inlineData: { data, mimeType: normalised as any } };
     const textPart:  Part = {
-      text: `You are a world-class ${brand.niche} Instagram content creator analysing this image/video for the account ${atHandle(brand)}.
+      text: `You are a world-class ${brand.niche} YouTube content creator analysing this image/video for the account ${atHandle(brand)}.
 
 Post type: ${postType}
 Niche: ${brand.niche}. Audience: ${brand.audience}.
@@ -567,7 +567,7 @@ Rules:
 - Start with a HOOK line that stops the scroll. Use line breaks (\\n) between sections
 - NO hashtags in the caption text. No asterisks, no markdown. End with a strong CTA.
 
-After the caption, output exactly 4 relevant Instagram hashtags starting with #.
+After the caption, output exactly 4 relevant YouTube search tags starting with #.
 Return ONLY valid JSON: { "caption": "...", "hashtags": ["#tag1","#tag2","#tag3","#tag4"] }`,
     };
 
@@ -578,7 +578,7 @@ Return ONLY valid JSON: { "caption": "...", "hashtags": ["#tag1","#tag2","#tag3"
         console.log(`[Gemini/vision] Trying ${model} for inline vision (${mimeType})...`);
         const m = this.genAI.getGenerativeModel({
           model,
-          systemInstruction: `You are a ${brand.niche} Instagram content expert analysing images and videos. Return only valid JSON.`,
+          systemInstruction: `You are a ${brand.niche} YouTube content expert analysing images and videos. Return only valid JSON.`,
           generationConfig:  { maxOutputTokens: 1000, temperature: 0.7 },
         });
         const result = await m.generateContent([textPart, mediaPart]);

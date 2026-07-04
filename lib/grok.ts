@@ -444,7 +444,7 @@ Return a JSON object with exactly these fields:
   ): Promise<HashtagResult[]> {
     const brand = await getBrand();
     const niche = brand.niche;
-    const prompt = `Generate ${count} optimized Instagram hashtags for a ${niche} post about: "${topic}"
+    const prompt = `Generate ${count} optimized YouTube search tags for a ${niche} Short about: "${topic}"
 
 Return a JSON array with exactly ${count} objects:
 [
@@ -486,10 +486,10 @@ Include a mix of: general ${niche} tags, specific topic tags, educational tags, 
 
 You are also a helpful assistant for the ${brand.appName} platform. Help users:
 - Generate content ideas and strategies
-- Optimize their Instagram posting schedule
+- Optimize their YouTube posting schedule
 - Analyze engagement metrics
 - Suggest trending ${brand.niche} topics
-- Answer questions about Instagram marketing for ${brand.audience}
+- Answer questions about YouTube growth for ${brand.audience}
 
 ${context ? `Additional context: ${context}` : ""}
 
@@ -511,7 +511,7 @@ Respond conversationally but concisely. Use markdown formatting when helpful.`;
     postsPerDay = 1
   ): Promise<{ date: string; type: PostType; topic: string; bestTime: string }[]> {
     const brand = await getBrand();
-    const prompt = `Create a ${days}-day Instagram content calendar for a ${brand.niche} account posting ${postsPerDay} time(s) per day.
+    const prompt = `Create a ${days}-day YouTube content calendar for a ${brand.niche} channel posting ${postsPerDay} time(s) per day.
 
 Return a JSON array with ${days * postsPerDay} objects:
 [
@@ -796,7 +796,7 @@ For quiz replies specifically: always verify the answer first, then give a real 
           },
           {
             role:    "user",
-            content: `This is a multiple-choice quiz caption from an Instagram post:
+            content: `This is a multiple-choice quiz caption from a YouTube Short:
 
 "${caption.slice(0, 1500)}"
 
@@ -952,7 +952,7 @@ You never provide specific personal advice that should come from a qualified pro
       : "";
 
     const brand = await getBrand();
-    const prompt = `Analyze this Instagram ${brand.niche} post caption and provide feedback.
+    const prompt = `Analyze this ${brand.niche} YouTube Short description and provide feedback.
 
 Caption:
 ${caption}

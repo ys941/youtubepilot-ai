@@ -92,7 +92,7 @@ async function generateRichCaption(post: RichCaptionPost, brand: BrandConfig): P
       : `5. A warm, energetic call to action that BOTH grows the audience AND drives engagement (engagement = reach): ▶️ Subscribe on YouTube ${ytH} for daily ${brand.niche}, 💾 Save this for later, ❤️ Share this with someone who needs it, 👇 Tag someone who needs to see this, and 💬 ask ONE specific question the viewer can answer in a word or two to spark comments.`;
 
     const prompt =
-`Write a BEAUTIFUL, detailed, scroll-stopping caption for a ${brand.niche} educational post aimed at ${brand.audience}. This SAME caption is used on both Instagram and YouTube, so make it engaging on both.
+`Write a BEAUTIFUL, detailed, scroll-stopping description for a ${brand.niche} educational YouTube Short aimed at ${brand.audience}.
 
 POST TYPE: ${post.type}
 TITLE: ${post.title}
@@ -107,7 +107,7 @@ ${learnSection}
 4. "💡 Why it matters:" 1-2 sentences of real-world relevance.
 ${ctaSection}
 
-Tone: authoritative but warm and accessible — like a brilliant expert who's a great teacher. Use tasteful emojis as section markers and bullet leads. NO markdown symbols (* # _), NO hashtags (added separately). Make it FULL, rich and genuinely DETAILED — aim for about 380-480 words. Expand EVERY key point thoroughly with the specific stat/number, the mechanism, and why it matters for the viewer. This is the complete description (it runs in full on YouTube; Instagram trims it cleanly at the end). Do NOT pad with filler — every line must be substantive and informative.`;
+Tone: authoritative but warm and accessible — like a brilliant expert who's a great teacher. Use tasteful emojis as section markers and bullet leads. NO markdown symbols (* # _), NO hashtags (added separately). Make it FULL, rich and genuinely DETAILED — aim for about 380-480 words. Expand EVERY key point thoroughly with the specific stat/number, the mechanism, and why it matters for the viewer. This is the complete YouTube description (it runs in full on the Short). Do NOT pad with filler — every line must be substantive and informative.`;
 
     const system =
       `You are a world-class ${brand.niche} expert and social media creator writing rich, beautifully formatted, engaging captions optimized for engagement and search. Return ONLY the caption text — no preamble, no markdown symbols, no hashtags.` +

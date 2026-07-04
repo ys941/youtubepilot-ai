@@ -25,7 +25,7 @@ const CreatePostSchema = z.object({
   hashtags:    z.array(z.string()).max(50).default([]),
   imagePrompt: z.string().max(2000).nullish(),
   reelScript:  z.string().max(20000).nullish(),
-  platform:    z.enum(["instagram", "youtube", "both"]).default("instagram"),
+  platform:    z.enum(["instagram", "youtube", "both"]).default("youtube"),
   status:      z.enum(["DRAFT", "SCHEDULED", "PUBLISHED", "FAILED"]).default("DRAFT"),
   scheduledFor: z.string().datetime({ offset: true }).nullish(),
   mediaUrls:    z.array(z.string().url()).default([]),
