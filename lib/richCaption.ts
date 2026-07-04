@@ -35,21 +35,16 @@ const RICHCAP_PREFIX = "RICHCAP:";
 const CAPTION_PREFIX = "CAPTION:";
 
 /**
- * Append a clean "follow us" links block — directly-clickable account links for
- * BOTH platforms. On YouTube both URLs are clickable; on Instagram the handle
- * mention is clickable (IG doesn't linkify caption URLs).
- * Idempotent: skips if the YouTube URL is already present.
+ * Append a clean "subscribe" links block — a directly-clickable YouTube channel
+ * link. Idempotent: skips if the YouTube URL is already present.
  */
 function appendFollowLinks(caption: string, brand: BrandConfig): string {
   const ytH = ytHandle(brand);
-  const igH = atHandle(brand);
   const ytUrl = `https://youtube.com/${ytH}`;
-  const igUrl = `https://instagram.com/${igH.replace(/^@/, "")}`;
   if (caption.includes(ytUrl)) return caption;
   const block =
 `━━━━━━━━━━━━━━
-▶️ Subscribe on YouTube ${ytH}: ${ytUrl}
-📸 Follow on Instagram ${igH}: ${igUrl}`;
+▶️ Subscribe on YouTube ${ytH}: ${ytUrl}`;
   return [caption.trim(), block].filter(Boolean).join("\n\n");
 }
 
@@ -80,7 +75,6 @@ function fallbackCaption(post: RichCaptionPost, brand: BrandConfig): string {
 async function generateRichCaption(post: RichCaptionPost, brand: BrandConfig): Promise<string> {
   const fallback = fallbackCaption(post, brand);
   const ytH = ytHandle(brand);
-  const igH = atHandle(brand);
   // Backward compat: a legacy "CAPTION:" prose caption is a valid content source.
   const stored = post.reelScript ?? "";
   const contentSource = stored.startsWith(CAPTION_PREFIX)
@@ -94,8 +88,8 @@ async function generateRichCaption(post: RichCaptionPost, brand: BrandConfig): P
       ? `3. "🔑 The challenge:" then present the question and each answer option on its own line with a number emoji (1️⃣ 2️⃣ 3️⃣ …). DO NOT reveal, hint at, or imply which option is correct — the answer is revealed later in the comments. Frame it as a test for the viewer.`
       : `3. "🔑 What you'll learn:" then expand EVERY key point (aim for 6-8) into its own line, each starting with a number emoji (1️⃣ 2️⃣ 3️⃣ …) — a full, accurate 1-2 sentence explanation with the specific stat/number, the mechanism, AND why it matters.`;
     const ctaSection = quiz
-      ? `5. A warm, energetic call to action that invites following on BOTH platforms: ▶️ Subscribe on YouTube ${ytH} AND 📸 Follow on Instagram ${igH} for daily ${brand.niche}, 💬 drop your answer (A/B/C/D) in the comments, 💾 Save this for later, and ❤️ Share this.`
-      : `5. A warm, energetic call to action that BOTH grows the audience AND drives engagement (engagement = reach): ▶️ Subscribe on YouTube ${ytH} AND 📸 Follow on Instagram ${igH} for daily ${brand.niche}, 💾 Save this for later, ❤️ Share this with someone who needs it, 👇 Tag someone who needs to see this, and 💬 ask ONE specific question the viewer can answer in a word or two to spark comments.`;
+      ? `5. A warm, energetic call to action: ▶️ Subscribe on YouTube ${ytH} for daily ${brand.niche}, 💬 drop your answer (A/B/C/D) in the comments, 💾 Save this for later, and ❤️ Share this.`
+      : `5. A warm, energetic call to action that BOTH grows the audience AND drives engagement (engagement = reach): ▶️ Subscribe on YouTube ${ytH} for daily ${brand.niche}, 💾 Save this for later, ❤️ Share this with someone who needs it, 👇 Tag someone who needs to see this, and 💬 ask ONE specific question the viewer can answer in a word or two to spark comments.`;
 
     const prompt =
 `Write a BEAUTIFUL, detailed, scroll-stopping caption for a ${brand.niche} educational post aimed at ${brand.audience}. This SAME caption is used on both Instagram and YouTube, so make it engaging on both.

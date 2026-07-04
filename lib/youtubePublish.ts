@@ -683,10 +683,8 @@ function buildYtDescription(post: YtPostInput, brand: BrandConfig, suffix?: stri
   }, brand);
   // Prefer the longer/richer of the two.
   const base = stored && stored.length >= beautiful.length ? stored : beautiful;
-  // Ensure the both-account CTA is present even in the fallback path. The beautiful
-  // caption only names Instagram; the same unified body runs on YouTube too, so
-  // guarantee BOTH handles appear (Subscribe on YouTube + Follow on Instagram).
-  // Only append the lines that aren't already in the base text.
+  // Ensure the Subscribe-on-YouTube CTA is present even in the fallback path,
+  // appended only when the channel isn't already named in the base text.
   const withBothAccounts = ensureBothAccountCta(base, brand);
   return [withBothAccounts, suffix?.trim() || ""].filter(Boolean).join("\n\n");
 }
@@ -696,47 +694,31 @@ function ytUrl(brand: BrandConfig): string {
   const h = ytHandle(brand).replace(/^@/, "");
   return h && h !== "our channel" ? `https://youtube.com/@${h}` : "";
 }
-/** Instagram profile URL for the brand. "" when no handle. */
-function igUrl(brand: BrandConfig): string {
-  const h = atHandle(brand).replace(/^@/, "");
-  return h && h !== "this account" ? `https://instagram.com/${h}` : "";
-}
 
 /**
- * Append a clean "follow us" links block to a caption — directly-clickable account
- * links for BOTH platforms. On YouTube both URLs are clickable; on Instagram the
- * handle mention is clickable (IG doesn't linkify caption URLs).
- * Idempotent: skips if the YouTube URL is already present.
+ * Append a clean "subscribe" links block to a caption — a directly-clickable
+ * YouTube channel link. Idempotent: skips if the YouTube URL is already present.
  */
 function appendFollowLinks(caption: string, brand: BrandConfig): string {
   const yt = ytUrl(brand);
-  const ig = igUrl(brand);
-  if (!yt && !ig) return caption;
-  if (yt && caption.includes(yt)) return caption;
-  const lines: string[] = ["━━━━━━━━━━━━━━"];
-  if (yt) lines.push(`▶️ Subscribe on YouTube ${ytHandle(brand)}: ${yt}`);
-  if (ig) lines.push(`📸 Follow on Instagram ${atHandle(brand)}: ${ig}`);
+  if (!yt) return caption;
+  if (caption.includes(yt)) return caption;
+  const lines: string[] = ["━━━━━━━━━━━━━━", `▶️ Subscribe on YouTube ${ytHandle(brand)}: ${yt}`];
   return [caption.trim(), lines.join("\n")].filter(Boolean).join("\n\n");
 }
 
 /**
- * Guarantee the call-to-action invites following on BOTH platforms (used by the
- * deterministic fallback caption). Appends only the missing handle line(s) so we
- * never duplicate a CTA that already names the channel.
+ * Guarantee the call-to-action invites subscribing on YouTube (used by the
+ * deterministic fallback caption). Appends the channel line only when missing so
+ * we never duplicate a CTA that already names the channel.
  */
 function ensureBothAccountCta(caption: string, brand: BrandConfig): string {
   const yt = ytHandle(brand);
-  const ig = atHandle(brand);
   const niche = (brand.niche ?? "").trim() || "more";
-  const lines: string[] = [];
   if (yt && yt !== "our channel" && !caption.includes(yt)) {
-    lines.push(`▶️ Subscribe on YouTube ${yt} for daily ${niche}!`);
+    return [caption, `▶️ Subscribe on YouTube ${yt} for daily ${niche}!`].filter(Boolean).join("\n\n");
   }
-  if (ig && ig !== "this account" && !caption.includes(ig)) {
-    lines.push(`📸 Follow on Instagram ${ig} for daily ${niche}!`);
-  }
-  if (lines.length === 0) return caption;
-  return [caption, lines.join("\n")].filter(Boolean).join("\n\n");
+  return caption;
 }
 
 // ── Unified rich caption (shared IDENTICALLY by Instagram + YouTube) ───────────
@@ -775,7 +757,6 @@ export async function buildRichCaption(post: YtPostInput, brand?: BrandConfig): 
   const b = brand ?? await getBrand();
   const niche = (b.niche ?? "").trim() || "this topic";
   const yt = ytHandle(b);
-  const ig = atHandle(b);
 
   // Deterministic fallback: the full beautiful caption (no suffix).
   const fallback = buildYtDescription(post, b);
@@ -794,14 +775,13 @@ export async function buildRichCaption(post: YtPostInput, brand?: BrandConfig): 
     const learnSection = quiz
       ? `3. "🔑 The challenge:" then present the question and each answer option on its own line with a number emoji (1️⃣ 2️⃣ 3️⃣ …). DO NOT reveal, hint at, or imply which option is correct — the answer is revealed later in the comments. Frame it as a test for the viewer.`
       : `3. "🔑 What you'll learn:" then expand EVERY key point (aim for 6-8) into its own line, each starting with a number emoji (1️⃣ 2️⃣ 3️⃣ …) — a full, accurate 1-2 sentence explanation with the specific stat/number, the mechanism, AND why it matters.`;
-    // The CTA must invite following on BOTH platforms regardless of where this
-    // post is published — the same unified body runs on Instagram AND YouTube.
+    // The CTA drives subscribers + engagement on YouTube (this is a YouTube-only build).
     const ctaSection = quiz
-      ? `5. A warm, energetic call to action that invites following on BOTH platforms: ▶️ Subscribe on YouTube ${yt} AND 📸 Follow on Instagram ${ig} for daily ${niche}, 💬 drop your answer (A/B/C/D) in the comments, 💾 Save this for later, and ❤️ Share this with someone who'd find it useful.`
-      : `5. A warm, energetic call to action that BOTH grows the audience AND drives engagement (engagement = reach): ▶️ Subscribe on YouTube ${yt} AND 📸 Follow on Instagram ${ig} for daily ${niche}, 💾 Save this for later, ❤️ Share this with someone who'd find it useful, 👇 Tag someone who needs to see this, and 💬 ask ONE specific question the viewer can answer in a word or two to spark comments.`;
+      ? `5. A warm, energetic call to action: ▶️ Subscribe on YouTube ${yt} for daily ${niche}, 💬 drop your answer (A/B/C/D) in the comments, 💾 Save this for later, and ❤️ Share this with someone who'd find it useful.`
+      : `5. A warm, energetic call to action that BOTH grows the audience AND drives engagement (engagement = reach): ▶️ Subscribe on YouTube ${yt} for daily ${niche}, 💾 Save this for later, ❤️ Share this with someone who'd find it useful, 👇 Tag someone who needs to see this, and 💬 ask ONE specific question the viewer can answer in a word or two to spark comments.`;
 
     const prompt =
-`Write a BEAUTIFUL, detailed, scroll-stopping caption for a ${niche} educational post. This SAME caption is used on both Instagram and YouTube, so make it engaging on both.
+`Write a BEAUTIFUL, detailed, scroll-stopping description for a ${niche} educational YouTube Short.
 
 POST TYPE: ${post.type}
 TITLE: ${post.title}
@@ -816,7 +796,7 @@ ${learnSection}
 4. "💡 Why it matters:" 1-2 sentences of real-world relevance.
 ${ctaSection}
 
-Tone: authoritative but warm and accessible — like a brilliant expert who's a great teacher. Use tasteful emojis as section markers and bullet leads. NO markdown symbols (* # _), NO hashtags (added separately). Make it FULL, rich and genuinely DETAILED — aim for about 380-480 words. Expand EVERY key point thoroughly with the specific stat/number, the mechanism, and why it matters for the viewer. This is the complete description (it runs in full on YouTube; Instagram trims it cleanly at the end). Do NOT pad with filler — every line must be substantive and informative.`;
+Tone: authoritative but warm and accessible — like a brilliant expert who's a great teacher. Use tasteful emojis as section markers and bullet leads. NO markdown symbols (* # _), NO hashtags (added separately). Make it FULL, rich and genuinely DETAILED — aim for about 380-480 words. Expand EVERY key point thoroughly with the specific stat/number, the mechanism, and why it matters for the viewer. This is the complete YouTube description (it runs in full on the Short). Do NOT pad with filler — every line must be substantive and informative.`;
 
     const system =
       `You are a world-class ${niche} expert and social media creator writing rich, beautifully formatted, engaging captions optimized for engagement and search. Return ONLY the caption text — no preamble, no markdown symbols, no hashtags.` +
