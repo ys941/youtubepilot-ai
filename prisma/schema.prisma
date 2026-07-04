@@ -67,7 +67,7 @@ enum WorkflowStatus {
 // MODELS
 // ─────────────────────────────────────────────
 
-// A "Brand" = a paired Instagram account + YouTube channel.
+// A "Brand" = one YouTube channel account.
 // Mirrors the current single-account setup. The PRIMARY brand (isPrimary=true)
 // resolves credentials from ENV vars (backward compatible); non-primary brands
 // store their own credentials in the columns below.
@@ -81,7 +81,8 @@ model Brand {
   isPrimary Boolean @default(false)
   active    Boolean @default(true)
 
-  // Instagram credentials (null for primary → resolved from ENV)
+  // Legacy Instagram credential columns (unused in this YouTube-only build; retained
+  // for schema back-compat — do NOT drop).
   igAccessToken       String?
   igBusinessAccountId String?
   igUsername          String?

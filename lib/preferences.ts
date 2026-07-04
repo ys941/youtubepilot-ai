@@ -70,10 +70,10 @@ export interface AutoPostSettings {
   scheduleTimes: string[];       // ["08:00","19:00"]
   timezone:     string;
   autoPublish:  boolean;         // true=publish immediately, false=save as draft
-  publishToYouTube: boolean;     // ON → daily IG auto-posts also publish to YouTube as Shorts (platform="both")
+  publishToYouTube: boolean;     // legacy cross-post toggle (YouTube-only build publishes Shorts)
   /**
    * Optional per-weekday timing + post-count overrides. When present for today's
-   * weekday, the IG auto-poster uses that entry's enabled/postsPerDay/times instead
+   * weekday, the auto-poster uses that entry's enabled/postsPerDay/times instead
    * of the global postsPerDay/scheduleTimes/scheduleDays. Empty/absent → global fallback.
    */
   dailySchedule?: DayScheduleEntry[];
@@ -95,7 +95,7 @@ export interface StorySettings {
 }
 
 export interface YouTubeSettings {
-  /** Mirror every published Instagram post to YouTube as a Short. */
+  /** Master toggle for the YouTube Shorts auto-poster. */
   enabled:       boolean;
   /** Privacy of uploaded Shorts: "public" | "unlisted" | "private". */
   privacy:       string;
@@ -177,10 +177,10 @@ export interface AllPreferences {
   youtube:       YouTubeSettings;
   morningDigest: MorningDigestSettings;
   /**
-   * Per-account default content prompt for Instagram generation.
-   * Optional — empty string means "use the built-in default". Stored in
-   * Brand.settings for non-primary brands; in the Preferences singleton for the
-   * primary brand. Backward compatible: existing rows simply lack this key.
+   * Per-account default content prompt (legacy key name `igDefaultPrompt`, retained
+   * for stored-preference back-compat). Optional — empty string means "use the
+   * built-in default". Stored in Brand.settings for non-primary brands; in the
+   * Preferences singleton for the primary brand. Existing rows simply lack this key.
    */
   igDefaultPrompt?: string;
   /** Per-account default content prompt for YouTube generation. See igDefaultPrompt. */
@@ -274,7 +274,7 @@ export const DEFAULTS: AllPreferences = {
 };
 
 // ───────────────────────────────────────────────────────────────────────────
-// Per-day schedule sourcing (Feature 1) — shared by the IG + YouTube auto-posters
+// Per-day schedule sourcing (Feature 1) — shared by the auto-posters
 // ───────────────────────────────────────────────────────────────────────────
 
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;

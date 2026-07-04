@@ -5,11 +5,11 @@
  *
  * Image source: Picsum Photos (https://picsum.photos) - free, no API key needed.
  *   Uses topic-based seeds for consistent results per prompt.
- *   Images are downloaded and re-hosted on a stable CDN for Instagram.
+ *   Images are downloaded and re-hosted on a stable public CDN.
  *
  * Upload priority:
  *   1. Cloudinary (unsigned upload - set CLOUDINARY_CLOUD_NAME + CLOUDINARY_UPLOAD_PRESET)
- *   2. catbox.moe (free CDN, no key needed - reliable Instagram-compatible URLs)
+ *   2. catbox.moe (free CDN, no key needed - reliable public URLs)
  *   3. Local public/uploads/ (only when NEXT_PUBLIC_APP_URL is a real domain)
  *
  * Note: Pollinations.ai removed their free tier (now returns HTTP 402).
@@ -188,7 +188,7 @@ export async function uploadBufferToStableCdn(
 /**
  * Uploads an MP4 buffer to a public CDN and returns a stable https URL (or null).
  * Mirrors uploadBufferToStableCdn but for video — needed so a rendered Short MP4
- * can be handed to Instagram (Reels require a public video_url, not raw bytes).
+ * can be handed to an uploader that requires a public video_url, not raw bytes.
  *
  * Priority: Cloudinary (resource_type=video) → catbox.moe → local public folder.
  */
@@ -280,7 +280,7 @@ export async function generateCarouselImages(
   coverTitle?: string
 ): Promise<string[]> {
   const urls: string[] = [];
-  // Instagram carousel supports up to 20 items — respect that limit, don't cap at 10
+  // Carousel supports up to 20 items — respect that limit, don't cap at 10
   const limited = slides.slice(0, 20);
 
   // -- Try branded slide rendering (Satori + Sharp) --
@@ -306,7 +306,7 @@ export async function generateCarouselImages(
     console.warn("[ImageGen] Branded slide gen failed, using Picsum fallback:", err?.message);
   }
 
-  // No Picsum stock-photo fallback — do not publish random stock photos to Instagram
+  // No Picsum stock-photo fallback — do not publish random stock photos
   console.warn("[ImageGen] Branded slide generation failed and no stock photo fallback is configured. Returning empty URL list.");
 
   console.log("[ImageGen] Generated " + urls.length + "/" + limited.length + " carousel images");

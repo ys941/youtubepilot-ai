@@ -27,9 +27,7 @@ export interface BrandRecord {
   label:          string;
   isPrimary:      boolean;
   active:         boolean;
-  igUsername:     string;
   ytChannelTitle: string;
-  hasInstagram:   boolean;
   hasYouTube:     boolean;
 }
 

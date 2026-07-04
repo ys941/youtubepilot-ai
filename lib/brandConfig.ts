@@ -3,7 +3,7 @@
  *
  * The single source of truth for everything niche/brand specific in the app.
  *
- * This platform ships as a NEUTRAL, any-niche Instagram automation tool. The
+ * This platform ships as a NEUTRAL, any-niche YouTube automation tool. The
  * recipient configures their own brand (app name, niche, persona, colours,
  * content types, topics, …) entirely from Settings → Brand — no code editing.
  *
@@ -50,7 +50,7 @@ export interface ContentTypeConfig {
 }
 
 export interface BrandPersona {
-  /** Instagram handle WITHOUT the @, e.g. "veganbakes". */
+  /** Account handle WITHOUT the @, e.g. "veganbakes". */
   handle: string;
   /** Public display name, e.g. "Chef Maya". */
   displayName: string;
@@ -88,7 +88,7 @@ export interface BrandConfig {
 
   persona: BrandPersona;
 
-  /** Auto-reply sent to new Instagram DMs (before the AI takes over). */
+  /** Legacy auto-reply template (unused in the YouTube-only build). */
   dmAutoReply: string;
   /** The "follow for more" style line appended to positive comment replies. */
   commentCtaLine: string;
@@ -191,16 +191,15 @@ function envBrandSeed(): Partial<BrandConfig> {
   if (e.BRAND_NICHE)   seed.niche    = e.BRAND_NICHE;
   if (e.BRAND_PURPOSE) seed.purpose  = e.BRAND_PURPOSE;
   if (e.BRAND_AUDIENCE) seed.audience = e.BRAND_AUDIENCE;
-  if (e.BRAND_HANDLE || e.INSTAGRAM_USERNAME) {
+  if (e.BRAND_HANDLE) {
     seed.persona = {
       ...NEUTRAL_DEFAULT.persona,
-      handle: (e.BRAND_HANDLE || e.INSTAGRAM_USERNAME || "").replace(/^@/, ""),
+      handle: (e.BRAND_HANDLE || "").replace(/^@/, ""),
       ...(e.BRAND_DISPLAY_NAME ? { displayName: e.BRAND_DISPLAY_NAME } : {}),
       ...(e.BRAND_ROLE ? { role: e.BRAND_ROLE } : {}),
       ...(e.BRAND_VOICE ? { voice: e.BRAND_VOICE } : {}),
     };
   }
-  if (e.DM_AUTO_REPLY) seed.dmAutoReply = e.DM_AUTO_REPLY;
   if (e.BRAND_YOUTUBE_HANDLE || e.BRAND_YOUTUBE_CHANNEL) {
     seed.youtube = {
       ...NEUTRAL_DEFAULT.youtube,
@@ -256,7 +255,7 @@ export function typeLabel(brand: BrandConfig, id: string): string {
   return ct?.label || id.replace(/_/g, " ").toLowerCase();
 }
 
-/** YouTube handle with leading @, e.g. "@veganbakes" (falls back to the IG handle). */
+/** YouTube handle with leading @, e.g. "@veganbakes" (falls back to the brand handle). */
 export function ytHandle(brand: BrandConfig): string {
   const h = (brand.youtube?.handle || brand.persona.handle || "").replace(/^@/, "").trim();
   return h ? `@${h}` : "our channel";

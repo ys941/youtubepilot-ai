@@ -54,7 +54,7 @@ export default function BrandSwitcher() {
     ? "Loading…"
     : isAll
       ? "All accounts"
-      : selected?.label ?? selected?.igUsername ?? "Account";
+      : selected?.label ?? selected?.ytChannelTitle ?? "Account";
 
   // Single-account (only primary) — still show the control, just non-fussy.
   const multi = brands.length > 1;

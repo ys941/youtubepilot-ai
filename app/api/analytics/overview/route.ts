@@ -214,7 +214,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           totalImpressions:  totals.impressions,
           avgEngagementRate: Math.round(avgEngagementRate * 10000) / 100,
           avgViralScore:     Math.round(avgViralScore * 100) / 100,
-          // Live Instagram account data
+          // Live account data
           followers:         liveFollowers,
           syncedAt,
           // Period-over-period changes (positive = growth)

@@ -2,7 +2,6 @@
  * GET  /api/brands  -  list all brands (safe summaries only, NO secret tokens)
  * POST /api/brands  -  create a new (non-primary) brand
  *      Body: { label: string,
- *              igToken?, igAcctId?, igUsername?, fbPageId?,
  *              ytClientId?, ytClientSecret?, ytRefreshToken?, ytChannelId?, ytChannelTitle? }
  *
  * Session-gated like the other /api/settings/* routes (getServerSession()).
@@ -43,7 +42,6 @@ export async function POST(request: NextRequest) {
     // Only forward defined credential keys (all optional).
     const creds: Partial<BrandCredentials> = {};
     const keys: (keyof BrandCredentials)[] = [
-      "igToken", "igAcctId", "igUsername", "fbPageId",
       "ytClientId", "ytClientSecret", "ytRefreshToken", "ytChannelId", "ytChannelTitle",
     ];
     for (const k of keys) {

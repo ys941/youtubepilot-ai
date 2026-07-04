@@ -1,7 +1,6 @@
 /**
  * PATCH  /api/brands/[id]  -  update a brand's label/active flag and/or credentials
  *        Body: { label?, active?,
- *                igToken?, igAcctId?, igUsername?, fbPageId?,
  *                ytClientId?, ytClientSecret?, ytRefreshToken?, ytChannelId?, ytChannelTitle? }
  * DELETE /api/brands/[id]  -  delete a brand (400 if it is the primary brand)
  *
@@ -52,7 +51,6 @@ export async function PATCH(
     // ── credential columns via the dedicated helper (only defined keys written) ──
     const creds: Partial<BrandCredentials> = {};
     const keys: (keyof BrandCredentials)[] = [
-      "igToken", "igAcctId", "igUsername", "fbPageId",
       "ytClientId", "ytClientSecret", "ytRefreshToken", "ytChannelId", "ytChannelTitle",
     ];
     for (const k of keys) {

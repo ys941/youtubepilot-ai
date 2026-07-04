@@ -1,9 +1,7 @@
 /**
  * lib/richCaption.ts
  *
- * Builds ONE unified, beautiful, detailed caption that is used IDENTICALLY on
- * both Instagram and YouTube for every post — whether the post originates on IG,
- * YouTube, or both.
+ * Builds ONE unified, beautiful, detailed caption used for every YouTube Short.
  *
  * The caption is a Grok-elaborated, emoji-structured prose caption:
  *   hook line → intro → 1️⃣2️⃣3️⃣ expanded key points → "💡 Why it matters" → CTA.
@@ -12,8 +10,7 @@
  * Caching (guarantees identical text + avoids duplicate Grok calls):
  *   The prose caption is stored on the post's `reelScript` field. Once a rich
  *   caption is generated it is persisted back as `reelScript = "RICHCAP:" + text`.
- *   On any later read (the other platform's publisher) we return that stored text
- *   verbatim, so IG and YT always carry the same caption and Grok runs only once.
+ *   On any later read we return that stored text verbatim, so Grok runs only once.
  *   The legacy `"CAPTION:"` prefix is still accepted as a fallback source.
  */
 

@@ -20,7 +20,9 @@ const SchedulePostSchema = z.object({
   timezone: z.string().default("Asia/Kolkata"),
   isRecurring: z.boolean().default(false),
   recurringRule: z.string().max(200).nullish(),
-  platform: z.enum(["instagram", "youtube", "both"]).default("instagram"),
+  // YouTube-only build. Legacy "instagram"/"both" values are still accepted for
+  // backward compatibility with older clients, but new posts default to "youtube".
+  platform: z.enum(["instagram", "youtube", "both"]).default("youtube"),
 });
 
 // ---------------------------------------------
@@ -185,7 +187,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       resolvedHashtags = resolvedHashtags.length ? resolvedHashtags : linkedPost.hashtags;
       resolvedMediaUrl = resolvedMediaUrl ?? (linkedPost.mediaUrls[0] ?? undefined);
       if (!platformProvided) {
-        resolvedPlatform = (linkedPost.platform as typeof resolvedPlatform) ?? "instagram";
+        resolvedPlatform = (linkedPost.platform as typeof resolvedPlatform) ?? "youtube";
       }
     }
 

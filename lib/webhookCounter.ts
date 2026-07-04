@@ -26,15 +26,15 @@ export function getWebhookEventCount(): number {
 
 // -- Webhook liveness tracker -------------------------------------------------
 // When the webhook receives a real comment event, it calls markWebhookActive().
-// runCommentCheck() reads isWebhookActive() and skips the Instagram API poll
-// entirely when the webhook has delivered events recently  -  saving API quota.
+// The comment poll reads isWebhookActive() and skips the API poll entirely when
+// the webhook has delivered events recently  -  saving API quota.
 //
 // Threshold: if no webhook event in the last 10 minutes, assume webhook is down
 // and fall back to API polling so comments are never missed.
 const WEBHOOK_ACTIVE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 let _lastWebhookCommentAt: Date | null = null;
 
-/** Call this every time the webhook receives a real Instagram comment. */
+/** Call this every time the webhook receives a real comment event. */
 export function markWebhookActive(): void {
   _lastWebhookCommentAt = new Date();
 }

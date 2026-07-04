@@ -3,11 +3,10 @@
  *
  * Phase 1 foundation for multi-account ("multi-brand") support.
  *
- * A "Brand" = a paired Instagram account + YouTube channel — mirroring the
- * current single-account setup. There is always exactly one PRIMARY brand
- * (isPrimary=true). The primary brand resolves its credentials from ENV vars,
- * preserving the existing behaviour EXACTLY; non-primary brands store their own
- * credentials in their Brand row.
+ * A "Brand" = one YouTube channel account — mirroring the current single-account
+ * setup. There is always exactly one PRIMARY brand (isPrimary=true). The primary
+ * brand resolves its credentials from ENV vars, preserving the existing behaviour
+ * EXACTLY; non-primary brands store their own credentials in their Brand row.
  *
  * Backward-compat rules baked in here:
  *   - A `null` brandId everywhere means "the primary brand".
@@ -25,10 +24,6 @@ import { prisma } from "@/lib/prisma";
 
 /** Fully-resolved credentials for one brand (secrets included — server only). */
 export interface BrandCredentials {
-  igToken:        string;
-  igAcctId:       string;
-  igUsername:     string;
-  fbPageId:       string;
   ytClientId:     string;
   ytClientSecret: string;
   ytRefreshToken: string;
@@ -42,9 +37,7 @@ export interface BrandRecord {
   label:          string;
   isPrimary:      boolean;
   active:         boolean;
-  igUsername:     string;
   ytChannelTitle: string;
-  hasInstagram:   boolean;
   hasYouTube:     boolean;
 }
 
@@ -56,33 +49,19 @@ function env(name: string): string {
   return process.env[name]?.trim() ?? "";
 }
 
-/** Resolve the IG handle the same way the legacy single-account code did. */
-function envIgUsername(): string {
-  return process.env.INSTAGRAM_USERNAME?.trim() || "";
-}
-
 /** Build a safe summary from a raw Brand row. */
 function toRecord(b: {
   id: string;
   label: string;
   isPrimary: boolean;
   active: boolean;
-  igUsername: string | null;
-  igAccessToken: string | null;
-  igBusinessAccountId: string | null;
   ytChannelTitle: string | null;
   ytClientId: string | null;
   ytRefreshToken: string | null;
 }): BrandRecord {
   // For the primary brand, credentials live in ENV — reflect that in has* flags
-  // and in the displayed username/channel so the UI shows the live account.
-  const igUsername = b.isPrimary ? (envIgUsername() || b.igUsername || "") : (b.igUsername ?? "");
+  // and in the displayed channel so the UI shows the live account.
   const ytChannelTitle = b.ytChannelTitle ?? "";
-
-  const hasInstagram = b.isPrimary
-    ? Boolean(env("INSTAGRAM_ACCESS_TOKEN") && env("INSTAGRAM_BUSINESS_ACCOUNT_ID")) ||
-      Boolean(b.igAccessToken && b.igBusinessAccountId)
-    : Boolean(b.igAccessToken && b.igBusinessAccountId);
 
   const hasYouTube = b.isPrimary
     ? Boolean(env("YOUTUBE_CLIENT_ID") && env("YOUTUBE_CLIENT_SECRET") && env("YOUTUBE_REFRESH_TOKEN")) ||
@@ -94,9 +73,7 @@ function toRecord(b: {
     label:          b.label,
     isPrimary:      b.isPrimary,
     active:         b.active,
-    igUsername,
     ytChannelTitle,
-    hasInstagram,
     hasYouTube,
   };
 }
@@ -158,9 +135,6 @@ const RECORD_SELECT = {
   label: true,
   isPrimary: true,
   active: true,
-  igUsername: true,
-  igAccessToken: true,
-  igBusinessAccountId: true,
   ytChannelTitle: true,
   ytClientId: true,
   ytRefreshToken: true,
@@ -196,10 +170,6 @@ export async function createBrand(
       label:               input.label,
       isPrimary:           false,
       active:              true,
-      igAccessToken:       input.igToken        ?? null,
-      igBusinessAccountId: input.igAcctId       ?? null,
-      igUsername:          input.igUsername     ?? null,
-      fbPageId:            input.fbPageId       ?? null,
       ytClientId:          input.ytClientId     ?? null,
       ytClientSecret:      input.ytClientSecret ?? null,
       ytRefreshToken:      input.ytRefreshToken ?? null,
@@ -220,10 +190,6 @@ export async function updateBrandCredentials(
   patch: Partial<BrandCredentials>,
 ): Promise<void> {
   const data: Record<string, string | null> = {};
-  if (patch.igToken        !== undefined) data.igAccessToken       = patch.igToken;
-  if (patch.igAcctId       !== undefined) data.igBusinessAccountId = patch.igAcctId;
-  if (patch.igUsername     !== undefined) data.igUsername          = patch.igUsername;
-  if (patch.fbPageId       !== undefined) data.fbPageId            = patch.fbPageId;
   if (patch.ytClientId     !== undefined) data.ytClientId          = patch.ytClientId;
   if (patch.ytClientSecret !== undefined) data.ytClientSecret      = patch.ytClientSecret;
   if (patch.ytRefreshToken !== undefined) data.ytRefreshToken      = patch.ytRefreshToken;
@@ -262,10 +228,6 @@ export async function getBrandCredentials(brandId?: string | null): Promise<Bran
     where: { id: resolvedId },
     select: {
       isPrimary:           true,
-      igAccessToken:       true,
-      igBusinessAccountId: true,
-      igUsername:          true,
-      fbPageId:            true,
       ytClientId:          true,
       ytClientSecret:      true,
       ytRefreshToken:      true,
@@ -278,10 +240,6 @@ export async function getBrandCredentials(brandId?: string | null): Promise<Bran
     // ENV wins; brand-row columns are the fallback. This reproduces the exact
     // values the legacy single-account code reads.
     return {
-      igToken:        env("INSTAGRAM_ACCESS_TOKEN")          || (brand.igAccessToken       ?? ""),
-      igAcctId:       env("INSTAGRAM_BUSINESS_ACCOUNT_ID")   || (brand.igBusinessAccountId ?? ""),
-      igUsername:     envIgUsername()                        || (brand.igUsername          ?? ""),
-      fbPageId:       env("FACEBOOK_PAGE_ID")                || (brand.fbPageId            ?? ""),
       ytClientId:     env("YOUTUBE_CLIENT_ID")               || (brand.ytClientId          ?? ""),
       ytClientSecret: env("YOUTUBE_CLIENT_SECRET")           || (brand.ytClientSecret      ?? ""),
       ytRefreshToken: env("YOUTUBE_REFRESH_TOKEN")           || (brand.ytRefreshToken      ?? ""),
@@ -292,10 +250,6 @@ export async function getBrandCredentials(brandId?: string | null): Promise<Bran
 
   // Non-primary brand → stored columns only.
   return {
-    igToken:        brand?.igAccessToken       ?? "",
-    igAcctId:       brand?.igBusinessAccountId ?? "",
-    igUsername:     brand?.igUsername          ?? "",
-    fbPageId:       brand?.fbPageId            ?? "",
     ytClientId:     brand?.ytClientId          ?? "",
     ytClientSecret: brand?.ytClientSecret      ?? "",
     ytRefreshToken: brand?.ytRefreshToken      ?? "",

@@ -1,93 +1,50 @@
 ﻿/**
  * lib/catchup.ts
  *
- * Startup catch-up logic -- runs when the app boots.
- * Handles three things that may have been missed while the app was offline:
- *   1. Publish overdue scheduled posts
- *   2. Fetch and store new comments on ALL published posts (DB + Instagram API)
- *   3. Auto-reply to DMs that never got a response
- *
- * Token priority: env var always wins over DB -- the env var is manually kept
- * up-to-date while the DB may contain a stale token from a previous session.
+ * Startup catch-up logic -- runs when the app boots (and on the 5-min loop).
+ * Handles work that may have been missed while the app was offline:
+ *   1. Publish overdue scheduled YouTube Shorts
+ *   2. Auto-generate today's YouTube Shorts
+ *   3. Auto-reply to new YouTube comments
  */
 
 import { prisma } from "@/lib/prisma";
 import { claimCommentForReply, releaseCommentClaim, markCommentReplied } from "@/lib/commentClaim";
-import { PostCommentContext, getGrokClient, checkGrokHealth } from "@/lib/grok";
+import { PostCommentContext, checkGrokHealth } from "@/lib/grok";
 import { getAIClient, generateJSONResilient } from "@/lib/ai-factory";
 // renderPostToJpeg and renderStoryToJpeg are imported dynamically at call sites
 // to prevent Turbopack from bundling Node.js-only modules (satori/sharp) for the edge runtime.
-import { uploadBufferToStableCdn, uploadVideoToStableCdn, deleteFromCloudinary, generateCarouselImages } from "@/lib/imageGenerator";
-import { buildBeautifulCaption, capIgCaption } from "@/lib/captionBuilder";
-import { readPreferences, readPreferencesForBrand, resolveDaySchedule, getBrand } from "@/lib/preferences";
+import { readPreferences, readPreferencesForBrand, resolveDaySchedule } from "@/lib/preferences";
 import { atHandle, buildBrandSystemPrompt, type BrandConfig } from "@/lib/brandConfig";
 import { listBrands, getBrandCredentials, getPrimaryBrandId, type BrandRecord, type BrandCredentials } from "@/lib/brands";
 import { wallTimeToUTC } from "@/lib/utils";
-import { notifEmitter, LiveNotif, isWebhookActive, secondsSinceLastWebhookComment } from "@/lib/webhookCounter";
+import { isWebhookActive } from "@/lib/webhookCounter";
 import {
   notifyPostFailed,
-  notifyRateLimit,
   notifyApiHealthDegraded,
   notifySystemError,
   notifyYouTubePublished,
   notifyYouTubeCommentReplied,
   notifyYouTubeFailed,
-  logRateLimitEvent,
   logSystemErrorEvent,
   getRecentRateLimitEvents,
   getRecentSystemErrors,
   getRecentHealthChanges,
 } from "@/lib/notifier";
-import { buildConciseHashtags } from "@/lib/hashtagEnricher";
 import {
   isYouTubeConfigured,
-  uploadShort,
   getRecentVideos,
   listCommentThreads,
   listCommentReplies,
   replyToYouTubeComment,
   getOwnChannelInfo,
 } from "@/lib/youtube";
-import { renderCardsToShortMp4 } from "@/lib/videoGenerator";
-import { publishPostToYouTubeShort, buildRichCaption } from "@/lib/youtubePublish";
+import { publishPostToYouTubeShort } from "@/lib/youtubePublish";
 import { shortPlan, DEFAULT_SHORT_SECONDS } from "@/lib/shortLength";
 
-const GRAPH_BASE   = "https://graph.facebook.com/v25.0";
-const PAGE_ID      = process.env.FACEBOOK_PAGE_ID ?? "";
-// Our own Instagram business account id -- the most reliable self-author signal
-const IG_ACCOUNT_ID = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID ?? "";
-// Our own Instagram handle -- used to skip AI-generated replies in comment lists
-const OWN_USERNAME = (process.env.INSTAGRAM_USERNAME ?? process.env.BRAND_HANDLE ?? "").toLowerCase();
-
-// Robust self-author check. A comment/reply is "ours" if its author id matches our
-// IG business account id or the Facebook Page id, OR its username matches OWN_USERNAME.
-// This catches the case where the IG account's actual handle differs from OWN_USERNAME
-// (which otherwise causes the bot to reply to its own replies â†’ reply loops).
-function isOwnComment(c: { username?: string; from?: { id?: string; username?: string } }): boolean {
-  const fromId = c.from?.id ?? "";
-  if (fromId && ((IG_ACCOUNT_ID && fromId === IG_ACCOUNT_ID) || (PAGE_ID && fromId === PAGE_ID))) {
-    return true;
-  }
-  const uname = (c.username ?? c.from?.username ?? "").toLowerCase();
-  return uname === OWN_USERNAME;
-}
-
-const DM_AUTO_REPLY =
-  process.env.DM_AUTO_REPLY ??
-  "ðŸ‘‹ Thanks for reaching out! We've received your message and will get back to you shortly.";
-
-// -- Extract correct answer from quiz content ----------------------------------
-function extractCorrectAnswer(content: string): { letter: string; text: string } | null {
-  const lines = content.split("\n").map((l) => l.trim()).filter(Boolean);
-  const answerLine = lines.find((l) => /^(answer|correct answer)\s*[:\-]/i.test(l));
-  if (!answerLine) return null;
-  const body = answerLine.replace(/^(answer|correct answer)\s*[:\-]\s*/i, "").replace(/\*\*/g, "").trim();
-  const letterMatch = body.match(/^([A-D])[.\-:\s]/i);
-  if (!letterMatch) return null;
-  const letter = letterMatch[1].toUpperCase();
-  const text   = body.replace(/^[A-D][.\-:\s]+/i, "").trim();
-  return { letter, text };
-}
+// Our own channel handle -- used to skip AI-generated replies in comment lists
+// (self-reply detection keys off the brand/YouTube channel handle).
+const OWN_USERNAME = (process.env.BRAND_HANDLE ?? "").toLowerCase();
 
 // -- Branded fallback replies (used only when Groq is unavailable) -------------
 // Built per-brand so each white-label account falls back to its OWN handle/CTA.
@@ -135,57 +92,6 @@ export async function generateAICommentReply(
   }
 }
 
-// -- AI-powered DM reply generator ---------------------------------------------
-// Chat / DM replies ALWAYS use Grok (not Gemini). Grok is a clean instruct model
-// with a stable key, so DMs never get corrupted by Gemini "thinking" models or
-// blocked by Gemini free-tier limits. Returns null if Grok is unavailable.
-export async function generateAIDMReply(
-  messages: Array<{ from: string; text: string; time: string }>,
-  senderUsername: string
-): Promise<string | null> {
-  try {
-    const grok = getGrokClient();
-    const reply = await grok.generateDMReply(messages, senderUsername);
-    const clean = (reply ?? "").trim();
-    if (!clean) {
-      console.warn("[Catchup] Grok DM reply came back EMPTY â€” will use DM_AUTO_REPLY fallback");
-      return null;
-    }
-    console.log(`[Catchup] Grok DM reply generated (${clean.length} chars)`);
-    return clean;
-  } catch (err) {
-    console.warn("[Catchup] Grok DM reply threw -- using fallback:", String(err));
-    return null;
-  }
-}
-
-// -- Fetch credentials -- env var always takes priority over DB ----------------
-// The env var is manually updated to the latest token; the DB may lag behind
-// (it only syncs when getServerSession() is called, i.e. after a page request).
-export async function getCredentials(): Promise<{ igToken: string; igAcctId: string }> {
-  // Prefer env vars -- they are always manually kept current
-  const envToken   = process.env.INSTAGRAM_ACCESS_TOKEN         || "";
-  const envAcctId  = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID || "";
-
-  // Only fall back to DB values if env vars are missing
-  if (envToken && envAcctId) {
-    return { igToken: envToken, igAcctId: envAcctId };
-  }
-
-  try {
-    const user = await prisma.user.findUnique({
-      where:  { id: "local-user" },
-      select: { instagramToken: true, instagramAccountId: true },
-    });
-    return {
-      igToken:  envToken  || user?.instagramToken     || "",
-      igAcctId: envAcctId || user?.instagramAccountId || "",
-    };
-  } catch {
-    return { igToken: envToken, igAcctId: envAcctId };
-  }
-}
-
 // â”€â”€ Multi-brand context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Everything the per-brand pipeline needs, resolved ONCE per brand per cycle so the
 // engine never reaches for module-level env consts. The primary brand's creds come
@@ -194,12 +100,8 @@ export interface BrandContext {
   brandId:    string;            // resolved brand id (always a real id)
   isPrimary:  boolean;
   primaryId:  string;            // the primary brand id (for null==primary filtering)
-  igToken:    string;
-  igAcctId:   string;
-  igUsername: string;            // lowercased own handle (own-comment detection)
-  fbPageId:   string;
+  ownHandle:  string;            // lowercased own channel handle (self-reply detection)
   ytCreds:    { clientId: string; clientSecret: string; refreshToken: string } | undefined;
-  hasInstagram: boolean;
   hasYouTube:   boolean;
   // Lazily-read brand preferences (readPreferencesForBrand). Cached on the context
   // so each per-brand function doesn't re-read independently within a cycle.
@@ -226,12 +128,10 @@ async function buildBrandContext(brand: BrandRecord, primaryId: string): Promise
     brandId:    brand.id,
     isPrimary:  brand.isPrimary,
     primaryId,
-    igToken:    creds.igToken,
-    igAcctId:   creds.igAcctId,
-    igUsername: (creds.igUsername || OWN_USERNAME).toLowerCase(),
-    fbPageId:   creds.fbPageId,
+    // Own channel handle for self-reply detection: prefer the brand's YT channel
+    // title, then the env BRAND_HANDLE fallback.
+    ownHandle:  (brand.ytChannelTitle || OWN_USERNAME).toLowerCase(),
     ytCreds:    brand.isPrimary ? undefined : ytCredsFor(creds),
-    hasInstagram: brand.hasInstagram || !!(creds.igToken && creds.igAcctId),
     hasYouTube:   brand.hasYouTube   || !!(creds.ytClientId && creds.ytRefreshToken) || (brand.isPrimary && isYouTubeConfigured()),
     prefs,
   };
@@ -245,19 +145,19 @@ async function getPrimaryBrandContext(): Promise<BrandContext> {
   const brands = await listBrands();
   const primary = brands.find((b) => b.isPrimary)
     ?? { id: primaryId, label: "Primary", isPrimary: true, active: true,
-         igUsername: "", ytChannelTitle: "", hasInstagram: false, hasYouTube: false } as BrandRecord;
+         ytChannelTitle: "", hasYouTube: false } as BrandRecord;
   return buildBrandContext(primary, primaryId);
 }
 
 // Normalise the dual call shapes of the per-brand functions. The new engine passes
-// (ctx, errors); legacy API-route callers pass (errors, igToken, igAcctId) and mean
-// "the primary brand". Returns a resolved { ctx, errors } either way.
+// (ctx, errors); legacy API-route callers pass (errors, ...) and mean "the primary
+// brand". Returns a resolved { ctx, errors } either way.
 async function normalizeBrandArgs(
   a: BrandContext | string[],
-  b: string[] | string,
+  b?: string[] | string,
 ): Promise<{ ctx: BrandContext; errors: string[] }> {
   if (Array.isArray(a)) {
-    // Legacy form: (errors, igToken, igAcctId). Build/return the primary context.
+    // Legacy form: (errors, ...). Build/return the primary context.
     return { ctx: await getPrimaryBrandContext(), errors: a };
   }
   return { ctx: a, errors: (b as string[]) ?? [] };
@@ -282,30 +182,6 @@ function brandFilter(ctx: BrandContext): Record<string, unknown> {
 //   â€¢ NON-PRIMARY brand â†’ its real id, so its rows are isolated from the primary.
 function brandIdForWrite(ctx: BrandContext): string | null {
   return ctx.isPrimary ? null : ctx.brandId;
-}
-
-// Stamp brandId onto a Comment row created via claimCommentForReply (which can't
-// take a brandId). No-op for the primary brand (rows stay NULL, exactly as today).
-async function tagCommentBrand(ctx: BrandContext, instagramCommentId: string): Promise<void> {
-  if (ctx.isPrimary) return;
-  await prisma.comment.updateMany({
-    where: { instagramCommentId },
-    data:  { brandId: ctx.brandId } as any,
-  }).catch(() => {});
-}
-
-// Per-brand own-comment check (Instagram). Mirrors the module-level isOwnComment but
-// uses THIS brand's igAcctId / fbPageId / igUsername instead of env consts.
-function isOwnCommentForBrand(
-  ctx: BrandContext,
-  c: { username?: string; from?: { id?: string; username?: string } },
-): boolean {
-  const fromId = c.from?.id ?? "";
-  if (fromId && ((ctx.igAcctId && fromId === ctx.igAcctId) || (ctx.fbPageId && fromId === ctx.fbPageId))) {
-    return true;
-  }
-  const uname = (c.username ?? c.from?.username ?? "").toLowerCase();
-  return uname === ctx.igUsername;
 }
 
 // --- Get a real user ID for ActivityLog FK (falls back to skip logging) -------
@@ -452,19 +328,6 @@ async function pickNextTopic(
   return topic;
 }
 
-// -- Fetch with one automatic retry on network failure ------------------------
-async function fetchWithRetry(url: string, opts?: RequestInit, retries = 1): Promise<Response> {
-  try {
-    return await fetch(url, opts);
-  } catch (err) {
-    if (retries > 0) {
-      await new Promise((r) => setTimeout(r, 2000)); // wait 2 s then retry
-      return fetchWithRetry(url, opts, retries - 1);
-    }
-    throw err;
-  }
-}
-
 // -- Persist a post/scheduled-post id with a short retry ------------------------
 // After a SUCCESSFUL external publish, the id-persist write MUST survive a
 // transient DB blip. If it were lost, the SP would stay PENDING and the next
@@ -501,275 +364,6 @@ export interface CatchupResult {
   youtubeCommentsReplied?: number; // Grok replies sent on YouTube videos
   errors:             string[];
   ranAt:              string;
-}
-
-// --- Helper: get Page Access Token --------------------------------------------
-// Priority:
-//   1. FACEBOOK_PAGE_ACCESS_TOKEN env var (long-lived, set once in .env.local)
-//      â€” PRIMARY brand only. A non-primary brand must NOT borrow the primary's
-//        env page token; it resolves its own from its igToken/page below.
-//   2. /me/accounts exchange (works with Facebook User tokens)
-//   3. /{PAGE_ID}?fields=access_token (legacy fallback)
-//   4. igToken as-is (last resort)
-//
-// `fbPageId` defaults to the env FACEBOOK_PAGE_ID (the primary brand's page) so the
-// single-account/legacy call site `getPageToken(igToken)` is byte-for-byte unchanged.
-// `useEnvPageToken` gates the env FACEBOOK_PAGE_ACCESS_TOKEN shortcut â€” true for the
-// primary brand (default), false for non-primary brands.
-export async function getPageToken(
-  igToken: string,
-  fbPageId: string = PAGE_ID,
-  useEnvPageToken = true,
-): Promise<string> {
-  // 1. Prefer explicit long-lived page token from env (PRIMARY brand only).
-  if (useEnvPageToken && process.env.FACEBOOK_PAGE_ACCESS_TOKEN) {
-    return process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
-  }
-  try {
-    // 2. Try /me/accounts -- works when igToken is a Facebook User token
-    const accountsRes  = await fetchWithRetry(`${GRAPH_BASE}/me/accounts?access_token=${igToken}`);
-    const accountsData = await accountsRes.json();
-    if (!accountsData.error && (accountsData.data ?? []).length > 0) {
-      const page = (accountsData.data as Array<{ id: string; access_token: string }>)
-        .find((p) => p.id === fbPageId) ?? accountsData.data[0];
-      if (page?.access_token) return page.access_token;
-    }
-    // 3. Legacy: /{fbPageId}?fields=access_token
-    const directRes  = await fetchWithRetry(`${GRAPH_BASE}/${fbPageId}?fields=access_token&access_token=${igToken}`);
-    const directData = await directRes.json();
-    if (!directData.error && directData.access_token) return directData.access_token;
-  } catch (err) {
-    console.warn("[Catchup] getPageToken error:", String(err));
-  }
-  // 4. Fall back to whatever token we have
-  return igToken;
-}
-
-// --- Helper: poll container until FINISHED ------------------------------------
-// Fix: when token can't query container status (auth error code 100/33),
-// skip polling and wait a fixed delay before attempting publish.
-// isVideo=true uses a longer fixed wait (60s) since videos take longer to process.
-async function waitForContainer(containerId: string, igToken: string, isVideo = false): Promise<void> {
-  const initialDelay = isVideo ? 15_000 : 8_000;  // videos need a head start
-  const interval     = 6_000;
-  const maxWaitMs    = isVideo ? 180_000 : 120_000; // 3 min for video, 2 min for image
-
-  await new Promise((r) => setTimeout(r, initialDelay));
-
-  const deadline = Date.now() + maxWaitMs;
-  let attempt = 0;
-  let authErrorCount = 0;
-
-  while (Date.now() < deadline) {
-    attempt++;
-    const res  = await fetchWithRetry(
-      `${GRAPH_BASE}/${containerId}?fields=status_code,status&access_token=${igToken}`
-    );
-    const data = await res.json();
-
-    if (data.error) {
-      const code = data.error.code;
-      if (code === 100 || code === 10 || code === 190) {
-        authErrorCount++;
-        console.warn(`[Catchup] Container status blocked (code ${code}) â€” skipping poll`);
-        if (authErrorCount >= 2) {
-          // Videos need longer to process â€” wait 60s, images 30s
-          const blindWait = isVideo ? 60_000 : 30_000;
-          console.log(`[Catchup] Container ${containerId}: waiting ${blindWait / 1000}s blind (${isVideo ? "video" : "image"}) before publish`);
-          await new Promise((r) => setTimeout(r, blindWait));
-          return;
-        }
-      } else {
-        throw new Error(`Container status error: ${data.error.message}`);
-      }
-    }
-
-    const statusCode: string = data.status_code ?? "UNKNOWN";
-    const statusMsg:  string = data.status      ?? "";
-    console.log(`[Catchup] Container ${containerId} -- ${statusCode}${statusMsg ? ` (${statusMsg})` : ""} | attempt ${attempt}`);
-
-    if (statusCode === "FINISHED") return;
-    if (statusCode === "ERROR")    throw new Error(`Instagram rejected the media: ${statusMsg || "check video/image format and specs"}`);
-    if (statusCode === "EXPIRED")  throw new Error(`Instagram container expired -- media URL unreachable by Meta servers`);
-
-    await new Promise((r) => setTimeout(r, interval));
-  }
-
-  // Timed out â€” try publish anyway
-  console.warn(`[Catchup] Container ${containerId} poll timed out â€” attempting publish anyway`);
-}
-
-// Detect video by URL extension or Cloudinary video path
-function isVideoMediaUrl(url: string): boolean {
-  return /\.(mp4|mov|webm|avi|m4v)(\?|#|$)/i.test(url) ||
-    url.includes("/video/upload/"); // Cloudinary video URL format
-}
-
-// --- Helper: publish a single media container --------------------------------
-// isStory=true -> uses media_type=STORIES (no caption, vertical 9:16 format)
-async function igPublish(
-  mediaUrl: string,
-  caption: string,
-  igToken: string,
-  igAcctId: string,
-  isStory = false,
-): Promise<string> {
-  caption = capIgCaption(caption);
-  // Step 1 -- create container
-  const isVideoMedia = isVideoMediaUrl(mediaUrl);
-  let containerParams: Record<string, string>;
-
-  if (isStory) {
-    containerParams = { image_url: mediaUrl, media_type: "STORIES", access_token: igToken };
-  } else if (isVideoMedia) {
-    // Video reels: use video_url + REELS media_type
-    containerParams = { video_url: mediaUrl, media_type: "REELS", caption, access_token: igToken };
-  } else {
-    containerParams = { image_url: mediaUrl, caption, access_token: igToken };
-  }
-
-  console.log(`[Catchup/igPublish] Creating ${isStory ? "STORY" : isVideoMedia ? "REEL" : "IMAGE"} container for ${mediaUrl.slice(-60)}`);
-  const p1 = new URLSearchParams(containerParams);
-  const r1 = await fetchWithRetry(`${GRAPH_BASE}/${igAcctId}/media?${p1}`, { method: "POST" });
-  const d1 = await r1.json();
-  if (d1.error) {
-    // Log full IG error for diagnosis
-    console.error(`[Catchup/igPublish] Container creation failed:`, JSON.stringify(d1.error));
-    throw new Error(`IG container error (code ${d1.error.code ?? "?"}): ${d1.error.message}`);
-  }
-  console.log(`[Catchup/igPublish] Container created: ${d1.id}`);
-
-  // Step 2 -- wait for Instagram to finish processing (videos need longer)
-  await waitForContainer(d1.id, igToken, isVideoMedia);
-
-  // Step 3 -- publish
-  const p2 = new URLSearchParams({ creation_id: d1.id, access_token: igToken });
-  const r2 = await fetchWithRetry(`${GRAPH_BASE}/${igAcctId}/media_publish?${p2}`, { method: "POST" });
-  const d2 = await r2.json();
-  if (d2.error) {
-    console.error(`[Catchup/igPublish] Publish failed:`, JSON.stringify(d2.error));
-    throw new Error(`IG publish error (code ${d2.error.code ?? "?"}): ${d2.error.message}`);
-  }
-
-  console.log(`[Catchup/igPublish] Published successfully: ${d2.id}`);
-  return d2.id as string;
-}
-
-// --- Helper: publish a multi-image CAROUSEL ----------------------------------
-// Creates one carousel-item container per slide image, then a CAROUSEL parent
-// container with all children, then publishes it.
-async function igPublishCarousel(
-  slideUrls: string[],
-  caption: string,
-  igToken: string,
-  igAcctId: string,
-): Promise<string> {
-  caption = capIgCaption(caption);
-  // Instagram rejects duplicate images and caps carousels at 20 items
-  const uniqueUrls = [...new Set(slideUrls)].slice(0, 20);
-  if (uniqueUrls.length < 2) throw new Error(`Carousel needs â‰¥2 images, got ${uniqueUrls.length}`);
-
-  // 1. Create item containers SERIALLY (parallel triggers IG rate-limit "Fatal" errors)
-  const childIds: string[] = [];
-  for (const url of uniqueUrls) {
-    try {
-      const p = new URLSearchParams({ image_url: url, is_carousel_item: "true", access_token: igToken });
-      const r = await fetchWithRetry(`${GRAPH_BASE}/${igAcctId}/media?${p}`, { method: "POST" });
-      const d = await r.json();
-      if (d.error) { console.warn(`[Catchup/carousel] item failed (${url.slice(-18)}): ${d.error.message}`); continue; }
-      childIds.push(d.id);
-      await new Promise((res) => setTimeout(res, 1500));
-    } catch (e: any) {
-      console.warn(`[Catchup/carousel] item exception (${url.slice(-18)}): ${e?.message}`);
-    }
-  }
-  // Completeness gate: don't publish a truncated carousel as "success". Require
-  // essentially all requested slides to register â€” allow a small tolerance for the
-  // odd IG hiccup: at least ceil(80% of requested) AND never fewer than 2. Falling
-  // short THROWS so the post fails and is retried with the full slide set rather
-  // than silently publishing a partial carousel.
-  const minRequired = Math.max(2, Math.ceil(uniqueUrls.length * 0.8));
-  if (childIds.length < minRequired) {
-    throw new Error(`Only ${childIds.length}/${uniqueUrls.length} carousel items registered (need â‰¥${minRequired}) â€” failing to retry with the full set`);
-  }
-
-  // 2. Give Instagram a moment to register all item containers
-  await new Promise((res) => setTimeout(res, 2000));
-
-  // 3. Create the CAROUSEL parent container
-  const pc = new URLSearchParams({ media_type: "CAROUSEL", children: childIds.join(","), caption, access_token: igToken });
-  const rc = await fetchWithRetry(`${GRAPH_BASE}/${igAcctId}/media?${pc}`, { method: "POST" });
-  const dc = await rc.json();
-  if (dc.error) throw new Error(`IG carousel container error (code ${dc.error.code ?? "?"}): ${dc.error.message}`);
-  console.log(`[Catchup/carousel] Container created with ${childIds.length} slides: ${dc.id}`);
-
-  await waitForContainer(dc.id, igToken, false);
-
-  // 4. Publish
-  const pp = new URLSearchParams({ creation_id: dc.id, access_token: igToken });
-  const rp = await fetchWithRetry(`${GRAPH_BASE}/${igAcctId}/media_publish?${pp}`, { method: "POST" });
-  const dp = await rp.json();
-  if (dp.error) throw new Error(`IG carousel publish error (code ${dp.error.code ?? "?"}): ${dp.error.message}`);
-  console.log(`[Catchup/carousel] Published successfully: ${dp.id}`);
-  return dp.id as string;
-}
-
-// --- Forced YouTube Short for platform="both" ---------------------------------
-// Best-effort: publishes a Short regardless of the global mirror toggle (that's
-// what "both" means). Logs + continues on throw; stores youtubeVideoId on success.
-// Idempotent â€” skips if youtubeVideoId is already set.
-async function forceYouTubeShort(args: {
-  ctx:  BrandContext;
-  sp:   { id: string; postId: string | null; title: string; content: string; hashtags: string[]; postType?: string | null; youtubeVideoId?: string | null };
-  post: any | null;
-}): Promise<void> {
-  const { ctx, sp, post } = args;
-  try {
-    if (sp.youtubeVideoId) return;             // already mirrored (in-memory)
-    if (!isYouTubeConfigured(ctx.ytCreds)) return; // no credentials â†’ silently skip
-
-    // Idempotency: re-read the freshest youtubeVideoId from the DB (not the stale
-    // in-memory sp) so retries/races never produce a duplicate upload.
-    const fresh = await prisma.scheduledPost.findUnique({
-      where: { id: sp.id }, select: { youtubeVideoId: true },
-    }).catch(() => null);
-    if (fresh?.youtubeVideoId) return;
-
-    const yt = ctx.prefs.youtube;
-    const ytPost = post ?? {
-      // Include the linked post id (when available) so buildRichCaption's cache key
-      // matches the IG-side caption â†’ byte-identical caption on both platforms.
-      ...(sp.postId ? { id: sp.postId } : {}),
-      type:     sp.postType || "EDUCATIONAL",
-      title:    sp.title,
-      content:  sp.content,
-      hashtags: sp.hashtags ?? [],
-    };
-    const { videoId } = await publishPostToYouTubeShort(ytPost as any, {
-      privacy:           yt?.privacy ?? "public",
-      secondsPerImage:   yt?.secondsPerImage ?? 5,
-      targetShortSeconds: yt?.targetShortSeconds ?? DEFAULT_SHORT_SECONDS,
-      descriptionSuffix: yt?.descriptionSuffix ?? "",
-    }, ctx.ytCreds);
-    // Cross-post succeeded externally — persist the id with retry so a transient
-    // DB blip can't drop it and cause a re-upload next tick (duplicate Short).
-    await persistWithRetry(() => prisma.scheduledPost.update({ where: { id: sp.id }, data: { youtubeVideoId: videoId } }), `YT(both) sp ${sp.id}`);
-    if (sp.postId) {
-      await persistWithRetry(() => prisma.post.updateMany({ where: { id: sp.postId! }, data: { youtubeVideoId: videoId } }), `YT(both) post ${sp.postId}`);
-    }
-    await safeLog({ action: "YOUTUBE_PUBLISHED", entity: "ScheduledPost", entityId: sp.id,
-      metadata: { youtubeVideoId: videoId, platform: "both", forced: true, catchup: true,
-                  title: sp.title, url: `https://youtube.com/shorts/${videoId}` } });
-    console.log(`[Catchup] (both) Mirrored SP ${sp.id} â†’ https://youtube.com/shorts/${videoId}`);
-    notifyYouTubePublished({ spId: sp.id, videoId, title: sp.title })
-      .catch((e: any) => console.warn("[Catchup] (both) publish notify failed:", e?.message));
-  } catch (err: any) {
-    const msg = err?.message ?? String(err);
-    console.warn(`[Catchup] (both) Forced YouTube publish failed for SP ${args.sp.id}:`, msg);
-    logSystemErrorEvent(`YouTube (both) publish failed: ${args.sp.title}`, msg);
-    notifyYouTubeFailed({ spId: args.sp.id, title: args.sp.title, error: msg, context: "YouTube (both)" })
-      .catch((e: any) => console.warn("[Catchup] (both) failure notify failed:", e?.message));
-  }
 }
 
 // Given a list of "HH:MM" times and a timezone, return the UTC Date of the NEXT
@@ -854,25 +448,20 @@ function slotTimeUTC(slot: string, allSlots: string[], tz: string): Date {
 }
 
 // --- 1. Publish overdue scheduled posts ---------------------------------------
-// Overloads: the multi-brand engine calls (ctx, errors); legacy callers (API routes
-// owned by other agents) still call (errors, igToken, igAcctId) and operate as the
-// primary brand. The legacy form builds the primary context from ENV internally.
+// YouTube-only: publishes overdue PENDING scheduled Shorts. Overloads: the
+// multi-brand engine calls (ctx, errors); legacy API-route callers still call
+// (errors, _b, _c) and operate as the primary brand (the trailing args are unused
+// and retained only for call-site compatibility). The legacy form builds the
+// primary context from ENV internally.
 export async function publishOverdueScheduled(ctx: BrandContext, errors: string[]): Promise<{ published: number; failed: number }>;
-export async function publishOverdueScheduled(errors: string[], igToken: string, igAcctId: string): Promise<{ published: number; failed: number }>;
+export async function publishOverdueScheduled(errors: string[], _b?: string, _c?: string): Promise<{ published: number; failed: number }>;
 export async function publishOverdueScheduled(
   a: BrandContext | string[],
-  b: string[] | string,
+  b?: string[] | string,
   _c?: string,
 ): Promise<{ published: number; failed: number }> {
   const { ctx, errors } = await normalizeBrandArgs(a, b);
-  const { igToken, igAcctId } = ctx;
-  const brand = ctx.prefs.brand;
   let published = 0, failed = 0;
-
-  // NOTE: We no longer bail out when IG credentials are missing â€” youtube-only
-  // scheduled posts must still publish. The Instagram publish branches below stay
-  // gated on igToken/igAcctId; only the YouTube branch runs without them.
-  const igConfigured = !!(igToken && igAcctId);
 
   // -- Self-heal: reap stuck "__CLAIMING__" locks ---------------------------------
   // The claim guard below flips PENDINGâ†’FAILED("__CLAIMING__:<ts>") to lock an entry
@@ -986,21 +575,33 @@ export async function publishOverdueScheduled(
         continue;
       }
 
-      // â”€â”€ Platform routing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      // Determine the target platform for this entry. Default "instagram"; if the
-      // ScheduledPost says "instagram" but its linked Post specifies something else,
-      // prefer the linked Post's platform.
-      let platform = (sp as any).platform || "instagram";
+      // â”€â”€ Platform routing (YouTube-only build) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // This build publishes ONLY YouTube Shorts. Determine the entry's platform;
+      // legacy "both" is treated as YouTube (the IG side no longer exists), and any
+      // legacy "instagram"-only entry is skipped (see below). Default to "youtube".
+      let platform = (sp as any).platform || "youtube";
       let routedPost: any = null;
       if (sp.postId) {
         routedPost = await prisma.post.findUnique({ where: { id: sp.postId } }).catch(() => null);
-        if (platform === "instagram" && routedPost?.platform && routedPost.platform !== "instagram") {
-          platform = routedPost.platform;
-        }
+      }
+      // Normalise: "both" (legacy IG+YT) â†’ YouTube-only.
+      if (platform === "both") platform = "youtube";
+
+      // â”€â”€ Skip legacy Instagram-only entries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // Instagram publishing has been removed. A ScheduledPost/Post whose platform is
+      // "instagram" (and not a YouTube post) can never publish here â€” mark it FAILED
+      // with a clear reason and move on rather than re-claiming it every tick.
+      if (platform === "instagram") {
+        await prisma.scheduledPost.update({
+          where: { id: sp.id },
+          data:  { status: "FAILED", error: "Instagram publishing is not supported (YouTube-only build)", retryCount: { increment: 1 } },
+        }).catch(() => {});
+        console.log(`[Catchup] Skipping SP ${sp.id} â€” Instagram-only entry (YouTube-only build)`);
+        continue;
       }
 
-      // â”€â”€ YOUTUBE-only branch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-      // Publish a Short directly from the post content â€” never touch the IG flow.
+      // â”€â”€ YOUTUBE branch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // Publish a Short directly from the post content.
       if (platform === "youtube") {
         if (!isYouTubeConfigured(ctx.ytCreds)) {
           console.warn(`[Catchup] SP ${sp.id} is youtube-only but YouTube is not configured â€” marking FAILED`);
@@ -1080,341 +681,6 @@ export async function publishOverdueScheduled(
         }
         continue;
       }
-
-      // From here on we run the Instagram publish flow. If IG isn't configured we
-      // can't proceed (instagram / both both need it) â€” reset to PENDING so a later
-      // run with credentials can pick it up.
-      if (!igConfigured) {
-        await prisma.scheduledPost.update({
-          where: { id: sp.id },
-          data:  { status: "PENDING", error: null },
-        }).catch(() => {});
-        continue;
-      }
-
-      const isStory = sp.postType === "STORY";
-      let resolvedMediaUrl = sp.mediaUrl ?? null;
-
-      // â”€â”€ CAROUSEL branch: render multiple slides + publish as a carousel â”€â”€â”€â”€â”€â”€
-      // Only when the linked Post is a CAROUSEL with stored slides and no single
-      // mediaUrl was pre-rendered. Publishes then continues (skips single-image flow).
-      if (sp.postId && !isStory && !resolvedMediaUrl) {
-        const cPost = await prisma.post.findUnique({ where: { id: sp.postId } });
-        const slides = (cPost?.carouselSlides as Array<{ slide: number; headline: string; body: string }> | null) ?? null;
-        if (cPost && cPost.type === "CAROUSEL" && Array.isArray(slides) && slides.length >= 2) {
-          try {
-            console.log(`[Catchup] Carousel post ${sp.id} â€” rendering ${slides.length} slides...`);
-            const slideUrls = await generateCarouselImages(slides, cPost.imagePrompt ?? "", cPost.title);
-            if (slideUrls.length < 2) throw new Error(`only ${slideUrls.length} slide image(s) rendered`);
-
-            // Unified rich caption (identical on IG + YT, generated once & cached as
-            // RICHCAP: on the post). Best-effort: fall back to the prior caption logic
-            // if the rich-caption build throws so publishing is never blocked.
-            let caption: string;
-            try {
-              const rich = await buildRichCaption({
-                id:         cPost.id,
-                type:       cPost.type,
-                title:      cPost.title,
-                hook:       cPost.hook,
-                content:    cPost.content,
-                cta:        cPost.cta,
-                reelScript: cPost.reelScript,
-                hashtags:   sp.hashtags ?? [],
-              });
-              caption = [rich, (sp.hashtags ?? []).filter(Boolean).join(" ")].filter(Boolean).join("\n\n");
-            } catch (capErr: any) {
-              console.warn(`[Catchup] Rich caption failed for carousel ${sp.id}, using fallback:`, capErr?.message ?? capErr);
-              const storedCaption = cPost.reelScript?.startsWith("CAPTION:") ? cPost.reelScript.slice(8).trim() : null;
-              caption = [storedCaption ?? cPost.content ?? "", (sp.hashtags ?? []).filter(Boolean).join(" ")]
-                .filter(Boolean).join("\n\n");
-            }
-
-            // Idempotency: re-read the freshest instagramPostId from the DB (not the
-            // stale in-memory sp) so a retry/race never posts to Instagram twice.
-            // Mirrors the youtubeVideoId re-read guard in forceYouTubeShort.
-            const freshIg = await prisma.scheduledPost.findUnique({
-              where: { id: sp.id }, select: { instagramPostId: true },
-            }).catch(() => null);
-            const igPostId = freshIg?.instagramPostId
-              ? freshIg.instagramPostId
-              : await igPublishCarousel(slideUrls, caption, igToken, igAcctId);
-            if (freshIg?.instagramPostId) {
-              console.log(`[Catchup] Carousel SP ${sp.id} already has instagramPostId ${igPostId} â€” skipping IG publish, reusing it`);
-            }
-
-            await prisma.scheduledPost.update({
-              where: { id: sp.id },
-              data:  { status: "PUBLISHED", publishedAt: new Date(), instagramPostId: igPostId, error: null },
-            });
-            await prisma.post.updateMany({
-              where: { id: sp.postId },
-              data:  { status: "PUBLISHED", instagramPostId: igPostId, publishedAt: new Date() },
-            });
-            await safeLog({ action: "POST_PUBLISHED", entity: "ScheduledPost", entityId: sp.id,
-              metadata: { igPostId, carousel: true, slides: slideUrls.length, catchup: true } });
-
-            // YouTube cross-post ONLY when the post explicitly targets "both"
-            // (driven by Auto-Post / Story â†’ "Also publish to YouTube"). The old
-            // global "mirror everything" behavior was removed in favor of those toggles.
-            if (platform === "both") {
-              await forceYouTubeShort({ ctx, sp, post: routedPost });
-            }
-
-            published++;
-            console.log(`[Catchup] Published CAROUSEL ${sp.id} with ${slideUrls.length} slides â†’ ${igPostId}`);
-            continue;
-          } catch (carErr: any) {
-            const msg = `Carousel publish failed: ${carErr?.message ?? carErr}`;
-            errors.push(`Schedule ${sp.id}: ${msg}`);
-            failed++;
-            await prisma.scheduledPost.update({
-              where: { id: sp.id },
-              data:  { status: "FAILED", error: msg, retryCount: { increment: 1 } },
-            }).catch(() => {});
-            console.error(`[Catchup] ${msg}`);
-            continue;
-          }
-        }
-      }
-
-      // -- Generate image if missing ------------------------------------------
-      if (!resolvedMediaUrl) {
-        try {
-          if (isStory) {
-            // Generate story card from the scheduled content â€” premium health awareness layout.
-            // Content format (set by scheduleAutoStory):
-            //   line 0         = headline
-            //   line 1         = body
-            //   lines 2â€“7      = "TIP:<tip text>" entries
-            //   optional last  = "TAGLINE:<tagline text>"
-            const lines    = sp.content.split("\n").filter(Boolean);
-            const headline = sp.title || lines[0] || `${brand.niche} tip of the day`;
-            const body     = lines[1] || "1 small habit today pays off tomorrow.";
-
-            // Parse TIP: and TAGLINE: prefixed lines
-            const parsedTips = lines
-              .filter((l: string) => l.startsWith("TIP:"))
-              .map((l: string) => l.slice(4).trim())
-              .filter(Boolean)
-              .slice(0, 6);
-
-            const parsedTagline = (lines.find((l: string) => l.startsWith("TAGLINE:")) ?? "")
-              .replace(/^TAGLINE:/, "")
-              .trim();
-
-            // Fallback: also try unprefixed short lines (backwards compat with old records)
-            const legacyTips = parsedTips.length < 3
-              ? lines
-                  .slice(2)
-                  .filter((l: string) => !l.startsWith("TAGLINE:"))
-                  .map((l: string) => l.replace(/^[\s\-â€¢âœ”\d.]+/, "").trim())
-                  .filter((l: string) => l.length > 3 && l.length < 80)
-                  .slice(0, 6)
-              : [];
-
-            const resolvedTips = parsedTips.length >= 3 ? parsedTips : legacyTips;
-
-            // Generic default tips â€” only used when the story has no tips stored.
-            const defaultTips = [
-              "Start small and stay consistent",
-              "Make it a daily habit",
-              "Track your progress",
-              "Keep learning",
-              "Share what works",
-              "Review and adjust often",
-            ];
-
-            const finalTips    = resolvedTips.length >= 3 ? resolvedTips : defaultTips;
-            const finalTagline = parsedTagline || (brand.tagline?.trim() || brand.commentCtaLine?.trim() || "Follow for more!");
-
-            const { renderStoryToJpeg } = await import("@/lib/storyImageGenerator");
-            const buf = await renderStoryToJpeg({
-              headline,
-              body,
-              label:   (brand.niche || "TIPS").toUpperCase(),
-              type:    "health_awareness",
-              tips:    finalTips,
-              tagline: finalTagline,
-              cta:     "Save this story & share with someone who'd find it useful âœ¨",
-            });
-            if (buf) {
-              resolvedMediaUrl = await uploadBufferToStableCdn(buf, ".jpg", `story-${sp.id}`);
-              if (resolvedMediaUrl) {
-                await prisma.scheduledPost.update({ where: { id: sp.id }, data: { mediaUrl: resolvedMediaUrl } });
-                console.log(`[Catchup] Generated story image for ${sp.id}: ${resolvedMediaUrl}`);
-              }
-            }
-          } else if (sp.postId) {
-            const linkedPost = await prisma.post.findUnique({ where: { id: sp.postId } });
-            if (linkedPost) {
-              const { renderPostToJpeg } = await import("@/lib/postTypeImageGenerator");
-              const buf = await renderPostToJpeg({
-                postType:   linkedPost.type,
-                title:      linkedPost.title,
-                hook:       linkedPost.hook       ?? "",
-                content:    linkedPost.content    ?? "",
-                cta:        linkedPost.cta        ?? "",
-                reelScript: linkedPost.reelScript ?? undefined,
-              });
-              if (buf) {
-                resolvedMediaUrl = await uploadBufferToStableCdn(buf, ".jpg", `sched-${sp.id}`);
-                if (resolvedMediaUrl) {
-                  await prisma.scheduledPost.update({ where: { id: sp.id }, data: { mediaUrl: resolvedMediaUrl } });
-                  console.log(`[Catchup] Generated image for scheduled post ${sp.id}: ${resolvedMediaUrl}`);
-                }
-              }
-            }
-          } else {
-            // Standalone scheduled post (no postId) -- generate a generic card from title/content
-            const lines    = sp.content.split("\n").filter(Boolean);
-            const headline = sp.title || lines[0] || brand.niche;
-            const body     = lines.slice(1).join(" ") || sp.content;
-            const { renderPostToJpeg: renderPostToJpegStandalone } = await import("@/lib/postTypeImageGenerator");
-            const buf = await renderPostToJpegStandalone({
-              postType: "EDUCATIONAL",
-              title:    headline,
-              hook:     "",
-              // No character cap â€” the card renderer auto-shrinks long text to fit.
-              content:  body,
-              cta:      "",
-            });
-            if (buf) {
-              resolvedMediaUrl = await uploadBufferToStableCdn(buf, ".jpg", `sched-${sp.id}`);
-              if (resolvedMediaUrl) {
-                await prisma.scheduledPost.update({ where: { id: sp.id }, data: { mediaUrl: resolvedMediaUrl } });
-                console.log(`[Catchup] Generated generic image for standalone scheduled post ${sp.id}: ${resolvedMediaUrl}`);
-              }
-            }
-          }
-        } catch (genErr: any) {
-          console.warn(`[Catchup] Image generation failed for ${sp.id}:`, genErr?.message);
-        }
-      }
-
-      if (!resolvedMediaUrl) {
-        await prisma.scheduledPost.update({
-          where: { id: sp.id },
-          // Increment retryCount like every other failure path â€” without it the
-          // FAILED-retry pass (retryCount < MAX) re-claimed this row on every tick.
-          data: { status: "FAILED", error: "No media URL and image generation failed. Check that the canvas renderer (sharp/skia-canvas) is installed and working.", retryCount: { increment: 1 } },
-        });
-        failed++;
-        continue;
-      }
-
-      // -- Build caption (stories don't use captions in the API) ----------------
-      let caption = "";
-      if (!isStory) {
-        if (sp.postId) {
-          try {
-            const linkedPost = await prisma.post.findUnique({ where: { id: sp.postId } });
-            if (linkedPost) {
-              // Media-folder uploads have their own caption â€” detect by Cloudinary/CDN mediaUrl
-              const isUploadedMedia = linkedPost.mediaUrls.some((url) => {
-                try {
-                  const h = new URL(url).hostname;
-                  return h.includes("cloudinary.com") || h.includes("amazonaws.com") ||
-                         h.includes("catbox.moe") || h.includes("cdninstagram.com");
-                } catch { return false; }
-              });
-
-              const hashtagStr = (sp.hashtags ?? []).filter(Boolean).join(" ");
-
-              if (isUploadedMedia) {
-                // Media-folder uploads keep the user's own caption verbatim â€” never reformat.
-                caption = [linkedPost.content ?? "", hashtagStr].filter(Boolean).join("\n\n");
-              } else {
-                // Auto-generated post â†’ ONE unified rich caption (identical on IG + YT,
-                // generated once & cached as RICHCAP: on the post). Best-effort: fall
-                // back to the prior caption logic if the rich-caption build throws.
-                try {
-                  const rich = await buildRichCaption({
-                    id:         linkedPost.id,
-                    type:       linkedPost.type,
-                    title:      linkedPost.title,
-                    hook:       linkedPost.hook,
-                    content:    linkedPost.content,
-                    cta:        linkedPost.cta,
-                    reelScript: linkedPost.reelScript,
-                    hashtags:   sp.hashtags ?? [],
-                  });
-                  caption = [rich, hashtagStr].filter(Boolean).join("\n\n");
-                } catch (capErr: any) {
-                  console.warn(`[Catchup] Rich caption failed for ${sp.id}, using fallback:`, capErr?.message ?? capErr);
-                  // If reelScript has a stored prose caption (CAPTION: prefix), use it directly
-                  const storedCaption = linkedPost.reelScript?.startsWith("CAPTION:")
-                    ? linkedPost.reelScript.slice(8).trim()
-                    : null;
-                  caption = storedCaption
-                    ? [storedCaption, hashtagStr].filter(Boolean).join("\n\n")
-                    : buildBeautifulCaption({
-                        postType:   linkedPost.type,
-                        title:      linkedPost.title,
-                        hook:       linkedPost.hook       ?? null,
-                        content:    linkedPost.content    ?? "",
-                        cta:        linkedPost.cta        ?? null,
-                        reelScript: linkedPost.reelScript ?? undefined,
-                        hashtags:   sp.hashtags ?? [],
-                      }, brand);
-                }
-              }
-            } else {
-              throw new Error("Post not found");
-            }
-          } catch {
-            const hashtagStr = (sp.hashtags ?? []).join(" ");
-            caption = `${sp.content}\n\n${hashtagStr}`.trim();
-          }
-        } else {
-          const hashtagStr = (sp.hashtags ?? []).join(" ");
-          caption = `${sp.content}\n\n${hashtagStr}`.trim();
-        }
-      }
-
-      // Idempotency: re-read the freshest instagramPostId from the DB (not the stale
-      // in-memory sp) so a retry/race never posts to Instagram twice. Mirrors the
-      // youtubeVideoId re-read guard in forceYouTubeShort.
-      const freshIg = await prisma.scheduledPost.findUnique({
-        where: { id: sp.id }, select: { instagramPostId: true },
-      }).catch(() => null);
-      const igPostId = freshIg?.instagramPostId
-        ? freshIg.instagramPostId
-        : await igPublish(resolvedMediaUrl, caption, igToken, igAcctId, isStory);
-      if (freshIg?.instagramPostId) {
-        console.log(`[Catchup] SP ${sp.id} already has instagramPostId ${igPostId} â€” skipping IG publish, reusing it`);
-      }
-
-      await prisma.scheduledPost.update({
-        where: { id: sp.id },
-        data: { status: "PUBLISHED", publishedAt: new Date(), instagramPostId: igPostId, error: null },
-      });
-
-      if (sp.postId) {
-        await prisma.post.updateMany({
-          where: { id: sp.postId },
-          data: { status: "PUBLISHED", instagramPostId: igPostId, publishedAt: new Date() },
-        });
-      }
-
-      // YouTube cross-post ONLY when the post explicitly targets "both"
-      // (driven by Auto-Post / Story â†’ "Also publish to YouTube"). BEFORE Cloudinary cleanup.
-      if (platform === "both") {
-        await forceYouTubeShort({ ctx, sp, post: routedPost });
-      }
-
-      // Delete from Cloudinary after successful publish -- Instagram already cached it
-      void deleteFromCloudinary(resolvedMediaUrl);
-
-      await safeLog({
-        action:   "POST_PUBLISHED",
-        entity:   isStory ? "Story" : "ScheduledPost",
-        entityId: sp.id,
-        metadata: { igPostId, scheduledFor: sp.scheduledFor, isStory, catchup: true },
-      });
-
-      published++;
-      console.log(`[Catchup] Published ${isStory ? "story" : "post"}: ${sp.id} (was due ${sp.scheduledFor})`);
     } catch (err: any) {
       const msg = err?.message ?? String(err);
       errors.push(`Schedule ${sp.id}: ${msg}`);
@@ -1443,54 +709,16 @@ export async function publishOverdueScheduled(
   return { published, failed };
 }
 
-// --- Helper: reply to a comment -----------------------------------------------
-export async function replyToComment(commentId: string, message: string, igToken: string): Promise<boolean> {
-  try {
-    const params = new URLSearchParams({ message, access_token: igToken });
-    const res  = await fetchWithRetry(
-      `${GRAPH_BASE}/${commentId}/replies`,
-      { method: "POST", body: params }
-    );
-    const data = await res.json();
-    if (data.error) {
-      console.warn("[Catchup] Comment reply API error:", data.error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.warn("[Catchup] Comment reply network error:", String(err));
-    return false;
-  }
-}
-
-// In-memory sets to avoid duplicate replies within the same server session.
-// Resets on server restart -- first run after restart will re-check and reply if needed.
-// These EXPORTED sets are the PRIMARY brand's sets â€” webhook handlers (which always
-// operate as the primary brand) import and share them, so the primary path is
-// byte-identical to today. Per-brand variants are stored in the Maps below and the
-// primary brand maps back to these exact sets (see the *ForBrand accessors).
-export const _repliedCommentIds     = new Set<string>(); // Instagram comment IDs
-export const _repliedConversationIds = new Set<string>(); // Instagram conversation IDs
+// In-memory set to avoid duplicate YouTube comment replies within the same server
+// session. Resets on server restart -- the first run after restart re-checks and
+// replies if needed. The EXPORTED singleton is the PRIMARY brand's set; per-brand
+// variants live in the Map below (see repliedYouTubeCommentSet).
 export const _repliedYouTubeCommentIds = new Set<string>(); // YouTube comment IDs
 
-// Per-brand dedupe sets. One brand's replies must never suppress another's. The
-// primary brand reuses the exported singletons above for full backward compat.
-const _repliedCommentIdsByBrand     = new Map<string, Set<string>>();
-const _repliedConversationIdsByBrand = new Map<string, Set<string>>();
+// Per-brand dedupe set. One brand's replies must never suppress another's. The
+// primary brand reuses the exported singleton above for full backward compat.
 const _repliedYouTubeCommentIdsByBrand = new Map<string, Set<string>>();
 
-function repliedCommentSet(ctx: BrandContext): Set<string> {
-  if (ctx.isPrimary) return _repliedCommentIds;
-  let s = _repliedCommentIdsByBrand.get(ctx.brandId);
-  if (!s) { s = new Set<string>(); _repliedCommentIdsByBrand.set(ctx.brandId, s); }
-  return s;
-}
-function repliedConversationSet(ctx: BrandContext): Set<string> {
-  if (ctx.isPrimary) return _repliedConversationIds;
-  let s = _repliedConversationIdsByBrand.get(ctx.brandId);
-  if (!s) { s = new Set<string>(); _repliedConversationIdsByBrand.set(ctx.brandId, s); }
-  return s;
-}
 function repliedYouTubeCommentSet(ctx: BrandContext): Set<string> {
   if (ctx.isPrimary) return _repliedYouTubeCommentIds;
   let s = _repliedYouTubeCommentIdsByBrand.get(ctx.brandId);
@@ -1600,7 +828,7 @@ export async function replyToYouTubeComments(ctx: BrandContext, maxVideos = 5): 
   const ownAuthors = new Set(
     [ownInfo.title, ownInfo.handle,
       ctx.isPrimary ? process.env.YOUTUBE_CHANNEL_TITLE : "",
-      ctx.igUsername]
+      ctx.ownHandle]
       .filter(Boolean)
       .map((s) => norm(String(s))),
   );
@@ -1767,59 +995,10 @@ export async function replyToYouTubeComments(ctx: BrandContext, maxVideos = 5): 
   return replied;
 }
 
-// -- Per-post quiz answer cache ------------------------------------------------
-// Stores the single correct answer per Instagram media ID so every commenter on
-// the same post is evaluated against the same answer (not re-determined per comment).
-// Prevents the AI from praising both "B" and "C" as correct on the same quiz.
-export const _quizAnswerCache = new Map<string, { correctLetter: string; correctAnswer: string }>();
-
-/** Resolve the correct answer for a quiz post -- cache-first, then Groq fallback. */
-export async function resolveQuizAnswer(
-  mediaId:  string,
-  caption:  string,
-): Promise<{ correctLetter: string; correctAnswer: string } | null> {
-  // 1. Try explicit "Answer: B -- ..." line in caption
-  const extracted = extractCorrectAnswer(caption);
-  if (extracted) {
-    _quizAnswerCache.set(mediaId, { correctLetter: extracted.letter, correctAnswer: extracted.text });
-    return { correctLetter: extracted.letter, correctAnswer: extracted.text };
-  }
-
-  // 2. Return cached answer if already determined this session
-  const cached = _quizAnswerCache.get(mediaId);
-  if (cached) return cached;
-
-  // 3. Ask AI provider to determine the correct answer once -- low temperature, deterministic
-  try {
-    const ai     = await getAIClient();
-    const answer = await ai.determineQuizAnswer(caption);
-    if (answer) {
-      _quizAnswerCache.set(mediaId, answer);
-      console.log(`[QuizCache] Determined answer for ${mediaId}: ${answer.correctLetter} -- ${answer.correctAnswer.slice(0, 60)}`);
-      return answer;
-    }
-  } catch (err) {
-    console.warn("[QuizCache] Could not determine quiz answer:", String(err));
-  }
-  return null;
-}
-
-
-
 // --- Rate-limit tracker -------------------------------------------------------
-// When Meta returns code 4 (app rate limit), we back off for 1 hour
+// Back-off window; set when an upstream API signals a rate limit. isRateLimited()
+// gates the catch-up loop while the back-off is active.
 let rateLimitedUntil: Date | null = null;
-
-export function markRateLimited(): void {
-  rateLimitedUntil = new Date(Date.now() + 60 * 60 * 1000); // back off 1 hour
-  console.warn(`[Catchup] Meta rate limit hit -- pausing all API calls until ${rateLimitedUntil.toISOString()}`);
-  // Log for daily digest
-  logRateLimitEvent("Instagram (Meta API)", "Rate limit hit â€” comment syncing paused for 1 hour");
-  // Real-time alert
-  notifyRateLimit({ service: "Instagram", detail: "Meta API rate limit hit. Comment syncing paused for 1 hour." }).catch((e: any) => {
-    console.warn("[Catchup] Rate-limit email failed:", e?.message);
-  });
-}
 
 export function isRateLimited(): boolean {
   if (!rateLimitedUntil) return false;
@@ -2570,17 +1749,17 @@ export async function runCatchup(): Promise<CatchupResult> {
 async function _runCatchupInner(): Promise<CatchupResult> {
   const now = new Date();
 
-  // If Meta rate-limited us, skip entirely until the backoff expires
+  // If an upstream API rate-limited us, skip entirely until the backoff expires
   if (isRateLimited()) {
     const remaining = Math.ceil((rateLimitedUntil!.getTime() - Date.now()) / 60_000);
-    console.log(`[Catchup] Skipped -- Meta rate limit active, ${remaining} min remaining`);
+    console.log(`[Catchup] Skipped -- rate limit active, ${remaining} min remaining`);
     return {
       scheduledPublished: 0,
       scheduledFailed:    0,
       newComments:        0,
       commentsReplied:    0,
       dmsReplied:         0,
-      errors:             [`Meta API rate limited -- resuming in ~${remaining} min`],
+      errors:             [`API rate limited -- resuming in ~${remaining} min`],
       ranAt:              now.toISOString(),
     };
   }
@@ -2601,9 +1780,9 @@ async function _runCatchupInner(): Promise<CatchupResult> {
   }
   lastRanAt = now;
 
-  // YouTube-only build: no Instagram credentials are required to run. Each brand's
-  // YouTube work below self-gates on its own YT credentials (ctx.hasYouTube), so the
-  // loop simply does nothing for brands without a configured channel.
+  // YouTube-only build. Each brand's YouTube work below self-gates on its own YT
+  // credentials (ctx.hasYouTube), so the loop simply does nothing for brands
+  // without a configured channel.
   const errors: string[] = [];
 
   // â”€â”€ Resolve all active brands and run the pipeline INDEPENDENTLY for each â”€â”€â”€â”€â”€â”€
@@ -2621,7 +1800,7 @@ async function _runCatchupInner(): Promise<CatchupResult> {
   // Safety net: never run zero brands when the primary is configured.
   if (brands.length === 0 && primaryId) {
     brands = [{ id: primaryId, label: "Primary", isPrimary: true, active: true,
-                igUsername: "", ytChannelTitle: "", hasInstagram: false, hasYouTube: isYouTubeConfigured() }];
+                ytChannelTitle: "", hasYouTube: isYouTubeConfigured() }];
   }
 
   // Aggregate counters across all brands.
@@ -2639,7 +1818,7 @@ async function _runCatchupInner(): Promise<CatchupResult> {
     }
 
     console.log(`[Catchup] Brand "${brand.label}" (${ctx.isPrimary ? "primary" : ctx.brandId})` +
-      ` -- ig:${ctx.hasInstagram ? `â€¦${(ctx.igToken || "").slice(-8)}` : "â€”"} yt:${ctx.hasYouTube ? "on" : "â€”"}`);
+      ` -- yt:${ctx.hasYouTube ? "on" : "â€”"}`);
 
     // 1. Auto-generate today's YouTube Shorts for this brand. Self-gates per brand
     //    (date guard + DB de-dupe + in-flight guard), so calling every cycle never
