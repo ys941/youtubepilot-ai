@@ -9,6 +9,19 @@ import { DEFAULT_SHORT_SECONDS } from "@/lib/shortLength";
 import { getBrandCredentials, resolveBrandId } from "@/lib/brands";
 import { brandFromQuery, brandFromBody } from "@/lib/brandRequest";
 
+// After a SUCCESSFUL external publish, the id-persist write must survive a
+// transient DB blip — otherwise the post looks unpublished and a retry re-uploads
+// it (duplicate Short). Retry a few times with a small backoff.
+async function persistWithRetry(fn: () => Promise<unknown>, label: string, attempts = 3): Promise<void> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try { await fn(); return; }
+    catch (err) { lastErr = err; if (i < attempts - 1) await new Promise((r) => setTimeout(r, 500 * (i + 1))); }
+  }
+  console.error(`[Post Publish] id-persist FAILED after ${attempts} attempts (${label}):`, lastErr);
+  throw lastErr;
+}
+
 // ─────────────────────────────────────────────
 // YouTube Short publish
 // ─────────────────────────────────────────────
@@ -193,14 +206,20 @@ export async function POST(
     try {
       const ytResult = await publishYouTubeShortForPost(post, brandId, ytCreds);
       const now = new Date();
-      const updatedPost = await prisma.post.update({
-        where: { id },
-        data: {
-          status: "PUBLISHED",
-          youtubeVideoId: ytResult.videoId,
-          publishedAt: now,
-        },
-      });
+      // Publish already succeeded on YouTube — persist the id with retry so a
+      // transient DB blip can't drop it (which would look unpublished and cause a
+      // re-upload → duplicate Short).
+      let updatedPost!: Awaited<ReturnType<typeof prisma.post.update>>;
+      await persistWithRetry(async () => {
+        updatedPost = await prisma.post.update({
+          where: { id },
+          data: {
+            status: "PUBLISHED",
+            youtubeVideoId: ytResult.videoId,
+            publishedAt: now,
+          },
+        });
+      }, `YT post ${id}`);
 
       // Release ALL claimed ScheduledPosts as PUBLISHED with the resulting video id.
       if (claimedScheduledPostIds.length > 0) {

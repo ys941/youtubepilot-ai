@@ -465,6 +465,32 @@ async function fetchWithRetry(url: string, opts?: RequestInit, retries = 1): Pro
   }
 }
 
+// -- Persist a post/scheduled-post id with a short retry ------------------------
+// After a SUCCESSFUL external publish, the id-persist write MUST survive a
+// transient DB blip. If it were lost, the SP would stay PENDING and the next
+// catchup tick would re-publish → duplicate upload. Retry a few times with a small
+// backoff so a momentary connection hiccup doesn't cause a re-upload.
+async function persistWithRetry(
+  fn: () => Promise<unknown>,
+  label: string,
+  attempts = 3,
+): Promise<void> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await fn();
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) await new Promise((r) => setTimeout(r, 500 * (i + 1)));
+    }
+  }
+  // Exhausted retries — surface loudly. The id is already known externally, so a
+  // human/next reconciliation must record it; do NOT silently swallow.
+  console.error(`[Catchup] id-persist FAILED after ${attempts} attempts (${label}):`, lastErr);
+  throw lastErr;
+}
+
 // --- Summary returned to caller -----------------------------------------------
 export interface CatchupResult {
   scheduledPublished: number;
@@ -725,9 +751,11 @@ async function forceYouTubeShort(args: {
       targetShortSeconds: yt?.targetShortSeconds ?? DEFAULT_SHORT_SECONDS,
       descriptionSuffix: yt?.descriptionSuffix ?? "",
     }, ctx.ytCreds);
-    await prisma.scheduledPost.update({ where: { id: sp.id }, data: { youtubeVideoId: videoId } }).catch(() => {});
+    // Cross-post succeeded externally — persist the id with retry so a transient
+    // DB blip can't drop it and cause a re-upload next tick (duplicate Short).
+    await persistWithRetry(() => prisma.scheduledPost.update({ where: { id: sp.id }, data: { youtubeVideoId: videoId } }), `YT(both) sp ${sp.id}`);
     if (sp.postId) {
-      await prisma.post.updateMany({ where: { id: sp.postId }, data: { youtubeVideoId: videoId } }).catch(() => {});
+      await persistWithRetry(() => prisma.post.updateMany({ where: { id: sp.postId! }, data: { youtubeVideoId: videoId } }), `YT(both) post ${sp.postId}`);
     }
     await safeLog({ action: "YOUTUBE_PUBLISHED", entity: "ScheduledPost", entityId: sp.id,
       metadata: { youtubeVideoId: videoId, platform: "both", forced: true, catchup: true,
@@ -1018,15 +1046,17 @@ export async function publishOverdueScheduled(
             targetShortSeconds: yt?.targetShortSeconds ?? DEFAULT_SHORT_SECONDS,
             descriptionSuffix: yt?.descriptionSuffix ?? "",
           }, ctx.ytCreds);
-          await prisma.scheduledPost.update({
+          // Publish succeeded externally — persist the id with retry so a transient
+          // DB blip can't drop it and cause a re-upload next tick (duplicate Short).
+          await persistWithRetry(() => prisma.scheduledPost.update({
             where: { id: sp.id },
             data:  { status: "PUBLISHED", publishedAt: new Date(), youtubeVideoId: videoId, error: null },
-          });
+          }), `YT sp ${sp.id}`);
           if (sp.postId) {
-            await prisma.post.updateMany({
-              where: { id: sp.postId },
+            await persistWithRetry(() => prisma.post.updateMany({
+              where: { id: sp.postId! },
               data:  { status: "PUBLISHED", youtubeVideoId: videoId, publishedAt: new Date() },
-            });
+            }), `YT post ${sp.postId}`);
           }
           await safeLog({ action: "YOUTUBE_PUBLISHED", entity: "ScheduledPost", entityId: sp.id,
             metadata: { youtubeVideoId: videoId, platform: "youtube", catchup: true,
@@ -2494,6 +2524,10 @@ export async function runDailyHealthCheck(): Promise<boolean> {
 
 // --- Main export --------------------------------------------------------------
 let lastRanAt: Date | null = null;
+// Re-entrancy guard: a run that takes longer than MIN_INTERVAL_MS could overlap
+// the next timer tick and double-publish. Only one runCatchup may be in flight at
+// a time; a second concurrent call returns immediately.
+let _catchupInFlight = false;
 // Full loop (publishing + DMs) always runs every 5 min so DMs are never delayed.
 // Comments have their own gate â€” see COMMENT_POLL_*_MS below.
 // Exported so instrumentation.ts can drive its catch-up setInterval at the SAME
@@ -2512,6 +2546,28 @@ const COMMENT_POLL_WEBHOOK_MS  = 60 * 60 * 1000; // webhook live  â†’ hourl
 const COMMENT_POLL_FALLBACK_MS = 300_000;        // webhook silent â†’ poll every 5 min
 
 export async function runCatchup(): Promise<CatchupResult> {
+  // Re-entrancy guard — if a previous run is still going, skip this tick entirely.
+  if (_catchupInFlight) {
+    console.log("[Catchup] Skipped -- a previous run is still in flight (re-entrancy guard)");
+    return {
+      scheduledPublished: 0,
+      scheduledFailed:    0,
+      newComments:        0,
+      commentsReplied:    0,
+      dmsReplied:         0,
+      errors:             [],
+      ranAt:              (lastRanAt ?? new Date()).toISOString(),
+    };
+  }
+  _catchupInFlight = true;
+  try {
+    return await _runCatchupInner();
+  } finally {
+    _catchupInFlight = false;
+  }
+}
+
+async function _runCatchupInner(): Promise<CatchupResult> {
   const now = new Date();
 
   // If Meta rate-limited us, skip entirely until the backoff expires
