@@ -204,7 +204,7 @@ function AccountTab() {
 
   return (
     <div className="space-y-5">
-      <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Account Settings</h3>
+      <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Account Settings</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <GlassInput label="Full Name"      value={name}  onChange={setName}  placeholder="Your name" />
         <GlassInput label="Email Address"  type="email"  value={email} onChange={setEmail} placeholder="you@example.com" />
@@ -422,7 +422,7 @@ function AccountsTab() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Accounts</h3>
+          <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Accounts</h3>
           <p className="text-xs text-white/40 mt-0.5">
             Manage the YouTube channels (brands) this dashboard controls.
           </p>
@@ -750,7 +750,7 @@ function AiTab() {
 
   return (
     <div className="space-y-5">
-      <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>AI Configuration</h3>
+      <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>AI Configuration</h3>
       <p className="text-xs text-white/40 -mt-3">
         Configure each task lane independently — pick its primary provider + model and an ordered fallback chain.
         Switching a lane&apos;s primary provider auto-seeds a sensible default chain you can then tweak.
@@ -972,7 +972,7 @@ function PromptsTab() {
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>AI Prompt Editor</h3>
+        <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>AI Prompt Editor</h3>
         <p className="text-xs text-white/35 mt-1 leading-relaxed">
           Customize the system instructions for each post type. Your prompt is appended after the base brand voice context. Leave blank to use the built-in default.
         </p>
@@ -1303,7 +1303,7 @@ function AppearanceTab() {
 
   return (
     <div className="space-y-5">
-      <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Appearance</h3>
+      <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Appearance</h3>
       <p className="text-xs text-white/40 -mt-2">Pick a theme — it applies across the whole app instantly and is remembered on this device.</p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -1395,7 +1395,7 @@ function NotificationsTab() {
 
   return (
     <div className="space-y-5">
-      <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Notification Preferences</h3>
+      <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Notification Preferences</h3>
 
       {/* Alert email address */}
       <div className="rounded-xl p-4 space-y-3" style={{ background: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.15)" }}>
@@ -1494,7 +1494,7 @@ function MorningDigestTab() {
 
   return (
     <div className="space-y-5">
-      <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Morning Digest</h3>
+      <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Morning Digest</h3>
       <p className="text-xs text-white/40 leading-relaxed -mt-2">
         One email each morning summarising the <strong className="text-white/60">last 24 hours</strong> of your YouTube channel. Turn it on, pick a send time, and choose exactly what to include.
       </p>
@@ -1636,7 +1636,7 @@ function DangerTab() {
 
   return (
     <div className="space-y-5">
-      <h3 className="text-base font-bold text-red-400" style={{ fontFamily: "Sora, sans-serif" }}>Danger Zone</h3>
+      <h3 className="text-base font-bold text-red-400" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Danger Zone</h3>
       <p className="text-sm text-white/40 -mt-2">These actions are permanent and cannot be undone. A confirmation dialog will appear before each action.</p>
 
       <div className="space-y-3">
@@ -1770,7 +1770,7 @@ function YouTubeTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>YouTube Settings</h3>
+        <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>YouTube Settings</h3>
         <p className="text-xs text-white/35 mt-1 leading-relaxed">
           Publish auto-generated content to YouTube as a vertical <strong className="text-white/50">Short</strong>.
           The card images are stitched into a 1080×1920 video and uploaded automatically on the schedule below.
@@ -2315,7 +2315,7 @@ function AiSetupTab({ onGoToTab }: { onGoToTab: (id: string) => void }) {
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="text-base font-bold text-white flex items-center gap-2" style={{ fontFamily: "Sora, sans-serif" }}>
+        <h3 className="text-base font-bold text-white flex items-center gap-2" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
           <Wand2 size={16} className="text-brand" /> AI Setup
         </h3>
         <p className="text-xs text-white/35 mt-1 leading-relaxed">
@@ -2849,7 +2849,7 @@ function BrandTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Brand</h3>
+        <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Brand</h3>
         <p className="text-xs text-white/35 mt-1 leading-relaxed">
           White-label the entire app — name, voice, persona, colours and content topics. These settings re-skin the dashboard and steer how the AI writes for this account.
         </p>
@@ -3055,7 +3055,7 @@ function ContentTypesTab() {
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="text-base font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Content Types</h3>
+        <h3 className="text-base font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Content Types</h3>
         <p className="text-xs text-white/35 mt-1 leading-relaxed">
           Rename, describe, enable/disable, and give a custom AI prompt to each content slot. These labels appear throughout the app and steer generation for this account.
         </p>
@@ -3187,14 +3187,14 @@ export default function SettingsPage() {
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-5xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
         {/* Sidebar */}
-        <div className="rounded-2xl p-3 h-fit" style={panelStyle}>
+        <div className="rounded-2xl p-3 h-fit flex gap-2 overflow-x-auto lg:flex-col lg:gap-0 lg:overflow-visible" style={panelStyle}>
           {tabs.map((tab) => (
             <motion.button
               key={tab.id}
               whileHover={{ x: 2 }}
               onClick={() => selectTab(tab.id)}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all mb-1 last:mb-0",
+                "flex-shrink-0 whitespace-nowrap flex items-center gap-2 lg:gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all lg:w-full lg:mb-1 lg:last:mb-0",
                 activeTab === tab.id
                   ? tab.id === "danger"
                     ? "bg-red-500/20 text-red-300 border border-red-500/20"
@@ -3213,12 +3213,12 @@ export default function SettingsPage() {
           ))}
 
           {/* Sign Out */}
-          <div className="mt-3 pt-3 border-t border-white/[0.06]">
+          <div className="flex-shrink-0 lg:mt-3 lg:pt-3 lg:border-t border-white/[0.06]">
             <motion.button
               whileHover={{ x: 2 }}
               onClick={handleSignOut}
               disabled={signingOut}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-red-400/60 hover:text-red-400 hover:bg-red-500/5 disabled:opacity-40"
+              className="flex-shrink-0 whitespace-nowrap flex items-center gap-2 lg:gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-red-400/60 hover:text-red-400 hover:bg-red-500/5 disabled:opacity-40 lg:w-full"
             >
               {signingOut ? <Loader2 size={15} className="animate-spin" /> : <LogOut size={15} />}
               {signingOut ? "Signing out…" : "Sign Out"}

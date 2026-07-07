@@ -134,7 +134,7 @@ export default function AnalyticsPage() {
       {/* ── Header bar ─────────────────────────────────────────────────────── */}
       <motion.div variants={itemVariants} className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Analytics</h2>
+          <h2 className="text-xl font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Analytics</h2>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-white/[0.05] border border-white/[0.08] text-white/50">
             {isAll ? "All accounts" : selected?.label ?? "Primary"}
           </span>
@@ -174,7 +174,7 @@ export default function AnalyticsPage() {
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,0,0,0.12)" }}>
             <Youtube size={16} className="text-red-500" />
           </div>
-          <h2 className="text-lg font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>YouTube</h2>
+          <h2 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>YouTube</h2>
           {ytConfigured && (ytChannel?.title || ytStats?.channelTitle) && (
             <span className="text-xs text-white/30 truncate max-w-[200px]">@{ytChannel?.title || ytStats?.channelTitle}</span>
           )}
@@ -196,7 +196,7 @@ export default function AnalyticsPage() {
             <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: "rgba(255,0,0,0.1)" }}>
               <Youtube size={24} className="text-red-500/60" />
             </div>
-            <p className="text-sm font-semibold text-white" style={{ fontFamily: "Sora, sans-serif" }}>YouTube not connected</p>
+            <p className="text-sm font-semibold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>YouTube not connected</p>
             <p className="text-[11px] text-white/40 max-w-xs leading-relaxed">
               Connect your YouTube channel to see channel stats, video performance charts and your top videos here.
             </p>
@@ -229,14 +229,14 @@ export default function AnalyticsPage() {
                     <t.icon size={15} className={t.text} />
                   </div>
                   <p className="text-[10px] text-white/40 uppercase tracking-wider mb-1">{t.label}</p>
-                  <p className="text-xl font-bold text-white" style={{ fontFamily: "Sora, sans-serif" }}>{formatNumber(Number(t.value))}</p>
+                  <p className="text-xl font-bold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>{formatNumber(Number(t.value))}</p>
                 </motion.div>
               ))}
             </div>
 
             {/* ── Recent video performance chart ── */}
             <div className="rounded-2xl p-5" style={{ background: "rgba(17,17,24,0.8)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.07)" }}>
-              <h3 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: "Sora, sans-serif" }}>Recent Video Performance</h3>
+              <h3 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Recent Video Performance</h3>
               <div className="h-52">
                 {ytChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -267,7 +267,7 @@ export default function AnalyticsPage() {
             {/* ── Top videos table ── */}
             <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(17,17,24,0.8)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.07)" }}>
               <div className="flex items-center gap-2 px-5 py-4 border-b border-white/[0.06]">
-                <h3 className="text-sm font-semibold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Top Videos</h3>
+                <h3 className="text-sm font-semibold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Top Videos</h3>
                 <span className="text-[10px] text-white/25">by views</span>
               </div>
               {ytTopVideos.length > 0 ? (
@@ -340,7 +340,7 @@ export default function AnalyticsPage() {
             <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(17,17,24,0.8)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.07)" }}>
               <div className="flex items-center gap-2 px-5 py-4 border-b border-white/[0.06]">
                 <MessageCircle size={13} className="text-red-500" />
-                <h3 className="text-sm font-semibold text-white" style={{ fontFamily: "Sora, sans-serif" }}>Comments</h3>
+                <h3 className="text-sm font-semibold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>Comments</h3>
                 {ytComments.length > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 rounded-full text-[9px] bg-red-500/20 text-red-400">{ytComments.length}</span>
                 )}

@@ -249,7 +249,7 @@ function CarouselPreview({
 
           {/* Content */}
           <div className="flex-1 flex flex-col justify-center gap-4">
-            <h2 className="text-2xl font-bold text-white leading-tight" style={{ fontFamily: "Sora, sans-serif" }}>
+            <h2 className="text-2xl font-bold text-white leading-tight" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
               {slide.headline}
             </h2>
             <p className="text-sm text-white/60 leading-relaxed">{slide.body}</p>
@@ -618,7 +618,7 @@ export default function GeneratorPage() {
           {/* Account (Brand) Selector — defaults to the globally-selected account */}
           {brands.length > 1 && (
             <div className="rounded-2xl p-5" style={glassCard}>
-              <h3 className="text-sm font-semibold text-white mb-3" style={{ fontFamily: "Sora, sans-serif" }}>
+              <h3 className="text-sm font-semibold text-white mb-3" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
                 Account
               </h3>
               <select
@@ -641,7 +641,7 @@ export default function GeneratorPage() {
 
           {/* Platform (YouTube-only) */}
           <div className="rounded-2xl p-5" style={glassCard}>
-            <h3 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: "Sora, sans-serif" }}>
+            <h3 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
               Platform
             </h3>
             <div
@@ -667,7 +667,7 @@ export default function GeneratorPage() {
 
           {/* Post Type Grid */}
           <div className="rounded-2xl p-5" style={glassCard}>
-            <h3 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: "Sora, sans-serif" }}>
+            <h3 className="text-sm font-semibold text-white mb-4" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
               Short Type
             </h3>
             <div className="grid grid-cols-3 gap-2">
@@ -856,7 +856,7 @@ export default function GeneratorPage() {
                   >
                     {/* Title */}
                     <Section label="Title" copyText={generatedContent.title}>
-                      <h2 className="text-lg font-bold text-white leading-snug" style={{ fontFamily: "Sora, sans-serif" }}>
+                      <h2 className="text-lg font-bold text-white leading-snug" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
                         {generatedContent.title}
                       </h2>
                     </Section>
@@ -1161,7 +1161,7 @@ export default function GeneratorPage() {
             style={{ background: "rgba(14,14,22,0.98)", border: "1px solid rgb(var(--accent-rgb) / 0.25)" }}
           >
             <div>
-              <h3 className="text-base font-semibold text-white" style={{ fontFamily: "Sora, sans-serif" }}>
+              <h3 className="text-base font-semibold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
                 📅 Schedule Post
               </h3>
               <p className="text-xs text-white/40 mt-1">Pick a date and time to publish this post to {platformLabelFor(platform)}.</p>

@@ -162,14 +162,23 @@ function MobileNavItem({
 export default function Sidebar({
   mobileOpen,
   onMobileClose,
+  collapsed: collapsedProp,
+  onCollapsedChange,
 }: {
   mobileOpen:    boolean;
   onMobileClose: () => void;
+  collapsed?:         boolean;
+  onCollapsedChange?: (v: boolean) => void;
 }) {
   const pathname = usePathname();
   const router   = useRouter();
   const brand    = useBrand();
-  const [collapsed, setCollapsed] = useState(false);
+  // Controlled when the layout passes `collapsed`/`onCollapsedChange` (so the main
+  // content margin can track it); falls back to local state otherwise.
+  const [collapsedLocal, setCollapsedLocal] = useState(false);
+  const collapsed = collapsedProp ?? collapsedLocal;
+  const setCollapsed = (v: boolean) =>
+    onCollapsedChange ? onCollapsedChange(v) : setCollapsedLocal(v);
 
   const handleLogout = async () => {
     onMobileClose();
@@ -214,7 +223,7 @@ export default function Sidebar({
               exit={{ opacity: 0, x: -10 }}
               transition={{ duration: 0.2 }}
             >
-              <p className="font-bold text-base leading-tight gradient-text" style={{ fontFamily: "Sora, sans-serif" }}>
+              <p className="font-bold text-base leading-tight gradient-text" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
                 {brand.appName}
               </p>
               <p className="text-[10px] text-white/30 font-medium tracking-widest uppercase">AI Platform</p>
@@ -345,7 +354,7 @@ export default function Sidebar({
                   <Heart size={18} className="text-white fill-white" />
                 </div>
                 <div>
-                  <p className="font-bold text-base leading-tight gradient-text" style={{ fontFamily: "Sora, sans-serif" }}>
+                  <p className="font-bold text-base leading-tight gradient-text" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
                     {brand.appName}
                   </p>
                   <p className="text-[10px] text-white/30 font-medium tracking-widest uppercase">AI Platform</p>

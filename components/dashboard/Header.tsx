@@ -223,7 +223,7 @@ export default function Header({
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <h1 className="text-base lg:text-lg font-bold text-white leading-none" style={{ fontFamily: "Sora, sans-serif" }}>
+            <h1 className="text-base lg:text-lg font-bold text-white leading-none" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
               {pageInfo.title}
             </h1>
             {pageInfo.subtitle && (
@@ -311,7 +311,7 @@ export default function Header({
                   }}
                 >
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-                    <span className="text-sm font-semibold text-white" style={{ fontFamily: "Sora, sans-serif" }}>
+                    <span className="text-sm font-semibold text-white" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
                       Notifications
                     </span>
                     {unreadCount > 0 && (

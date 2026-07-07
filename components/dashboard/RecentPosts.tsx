@@ -155,7 +155,7 @@ export default function RecentPosts() {
       <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
         <h3
           className="text-sm font-semibold text-white"
-          style={{ fontFamily: "Sora, sans-serif" }}
+          style={{ fontFamily: "var(--font-sora), sans-serif" }}
         >
           Recent Posts
         </h3>

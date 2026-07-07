@@ -461,6 +461,42 @@ export async function notifyPostFailed(opts: {
   await sendEmail(`${kind} Publish Failed — ${title}`, html, `post_failed:${postId}`);
 }
 
+/** Alert when the daily content GENERATION fails to produce a post at all (e.g. every
+ *  AI provider is rate-limited). Unlike notifyPostFailed this covers the case where NO
+ *  post was even created — which is otherwise completely silent. The CALLER dedupes to
+ *  once per day; the day-scoped key is a second guard. */
+export async function notifyGenerationFailed(opts: {
+  kind:   string;   // e.g. "YouTube Short"
+  detail: string;
+  dayKey: string;   // IST date, YYYY-MM-DD
+}): Promise<void> {
+  const { kind, detail, dayKey } = opts;
+  logSystemErrorEvent(`${kind} Generation Failed`, detail);
+  if (!(await emailKindEnabled("fails"))) return;
+
+  const html = emailWrapper({
+    accentColor: "#ef4444",
+    icon:        "🚫",
+    heading:     `${kind} — No Post Generated`,
+    subheading:  "The daily content generation couldn't produce a post, so nothing was published.",
+    badgeLabel:  "🚨 Generation Error",
+    badgeColor:  "#ef4444",
+    body: `
+      ${infoTable([
+        ["What", `${kind} auto-generation`],
+        ["Day",  `${dayKey} (IST)`],
+        ["Time", toIST(new Date()) + " IST"],
+      ])}
+      ${errorBox(detail, "#ef4444")}
+      ${tipBox(`Usually an AI rate limit (e.g. Groq daily token cap). The scheduler keeps retrying; check Settings → AI Config fallbacks or the Railway logs.`)}
+    `,
+    ctaLabel: "Open Settings",
+    ctaUrl:   `${APP_URL}/settings`,
+  });
+  await sendEmail(`${kind} — No Post Generated (${dayKey})`, html, `gen_failed:${kind}:${dayKey}`)
+    .catch((err: any) => console.warn("[Notifier] generation-failure email failed:", err?.message));
+}
+
 /** REAL-TIME: Alert when YouTube or AI API rate limits are hit. */
 export async function notifyRateLimit(opts: {
   service: string;
@@ -1115,6 +1151,7 @@ export interface MorningDigestPayload {
   upcoming?:     Array<{ title: string; when: string }> | null;
   failures?:     Array<{ title: string; error: string }> | null;
   health?:       Array<{ label: string; ok: boolean }> | null;
+  systemAlerts?: Array<{ label: string; detail: string }> | null;
   growth?:       Array<{ label: string; value: string }> | null;
   aiUsage?:      { generations: number; tokens: number } | null;
 }
@@ -1147,6 +1184,7 @@ export async function sendMorningDigestEmail(p: MorningDigestPayload): Promise<v
   if (p.failures?.length) blocks.push(sec(`⚠️ Failures (24h) — ${p.failures.length}`, p.failures.slice(0, 10).map((x) => li(`<strong style="color:#ffb4b4">${digestEsc(x.title)}</strong><br><span style="color:#c2ccd9">${digestEsc(x.error).slice(0, 200)}</span>`)).join("")));
   if (p.growth?.length) blocks.push(sec("📈 Growth vs prior day", p.growth.map((g) => li(`${digestEsc(g.label)}: <strong style="color:#fff">${digestEsc(g.value)}</strong>`)).join("")));
   if (p.health?.length) blocks.push(sec("🛡️ System health", p.health.map((h) => li(`${h.ok ? "🟢" : "🔴"} ${digestEsc(h.label)}`)).join("")));
+  if (p.systemAlerts?.length) blocks.push(sec(`⚠️ Rate limits & errors (24h) — ${p.systemAlerts.length}`, p.systemAlerts.map((a) => li(`<strong style="color:#ffb4b4">⚠️ ${digestEsc(a.label)}</strong><br><span style="color:#c2ccd9;font-size:12px">${digestEsc(a.detail).slice(0, 200)}</span>`)).join("")));
   if (p.aiUsage) blocks.push(sec("🧠 AI usage (24h)", statRow([ stat("Generations", String(p.aiUsage.generations)), stat("Tokens", String(p.aiUsage.tokens)) ])));
 
   const body = blocks.length ? blocks.join("") : `<div style="color:#9aa7b8">No activity to report.</div>`;

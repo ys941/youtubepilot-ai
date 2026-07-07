@@ -173,7 +173,7 @@ export default function StatsCard({
           </p>
           <div
             className="text-2xl font-bold text-white mb-2"
-            style={{ fontFamily: "Sora, sans-serif" }}
+            style={{ fontFamily: "var(--font-sora), sans-serif" }}
           >
             {animateValue && typeof value === "number" ? (
               <AnimatedNumber

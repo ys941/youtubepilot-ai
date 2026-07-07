@@ -114,6 +114,16 @@ export async function getAIClient(task: AITask = "content", brandId?: string | n
   return getGrokClient();
 }
 
+/** Record a provider 429 / quota exhaustion as a rate-limit event so it surfaces in
+ *  the morning digest's System Health. Best-effort; dynamic import avoids any cycle. */
+function noteAiRateLimit(provider: string, model: string, err: any): void {
+  const msg = String(err?.message ?? err ?? "");
+  if (!/\b429\b|rate limit|tokens per day|\bTPD\b|quota|resource_exhausted/i.test(msg)) return;
+  import("@/lib/notifier")
+    .then((n) => n.logRateLimitEvent(`AI: ${provider}/${model}`, msg.slice(0, 220)))
+    .catch(() => {});
+}
+
 /**
  * Resilient plain-text generation across the user's configured chain
  * (primary → fallbacks). Returns the first non-empty result that passes `validate`;
@@ -149,6 +159,7 @@ export async function generateTextResilient(
     } catch (err: any) {
       lastErr = err;
       console.warn(`[AIFactory] ${step.provider}/${step.model} failed:`, err?.message ?? err);
+      noteAiRateLimit(step.provider, step.model, err);
     }
   }
   if (bestNonEmpty) return bestNonEmpty;
@@ -196,6 +207,7 @@ export async function generateJSONResilient(
       }
     } catch (err: any) {
       console.warn(`[AIFactory] JSON tier ${step.provider}/${step.model} failed:`, err?.message ?? err);
+      noteAiRateLimit(step.provider, step.model, err);
     }
   }
   return bestNonEmpty;

@@ -258,7 +258,7 @@ function PreviewModal({ post, onClose, onDelete, onPublish, onSchedule, isPublis
           <div className="flex-1 min-w-0 space-y-4">
             <div>
               <label className="text-[10px] text-white/30 uppercase tracking-wider font-medium">Title</label>
-              <h2 className="text-lg font-bold text-white mt-1 leading-snug" style={{ fontFamily: "Sora, sans-serif" }}>
+              <h2 className="text-lg font-bold text-white mt-1 leading-snug" style={{ fontFamily: "var(--font-sora), sans-serif" }}>
                 {post.title}
               </h2>
             </div>
