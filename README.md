@@ -171,11 +171,14 @@ All scheduling runs in a configurable timezone (per brand; neutral default **UTC
 ### 📊 Analytics & notifications
 - **Real-time analytics** — YouTube channel + per-video stats from the Data API (synced to the DB), surfaced on Overview + Analytics.
 - **Daily health email** — digest via Resend/Nodemailer: system health (DB / AI / YouTube), today's YouTube posts, today's auto-generated posts, upcoming scheduled posts, 24h stats, failures, and rate-limit events.
-- **Morning Digest** — an optional once-a-day summary email of the **last 24 hours** of your YouTube channel, sent at a time you choose (IST). In **Settings → Morning Digest** you flip a master switch and pick exactly what to include: 24h insights, new comments, published videos, subscribers, top performer, auto-engagement, today's schedule, failures, growth vs. prior day, system health, and AI usage. Built by `lib/morningDigest.ts` (each section best-effort), rendered by `sendMorningDigestEmail`, and polled from `instrumentation.ts` once per day at the configured hour.
+- **Morning Digest** — an optional once-a-day summary email of the **last 24 hours** of your YouTube channel, sent at a time you choose (IST). In **Settings → Morning Digest** you flip a master switch and pick exactly what to include: 24h insights, new comments, published videos, subscribers, top performer, auto-engagement, today's schedule, failures, growth vs. prior day, system health, and AI usage. **System Health surfaces AI rate-limits / 429s**: if any provider was rate-limited in the last 24h, the AI-provider line is marked **degraded** (rate-limits are the usual cause of missed posts) and the actual rate-limit + error events from the window are listed under System Health. Built by `lib/morningDigest.ts` (each section best-effort), rendered by `sendMorningDigestEmail`, and polled from `instrumentation.ts` once per day at the configured hour.
 - **Activity + live alerts** — every publish/reply/topic-use logged to `ActivityLog`; real-time alerts stream over SSE (`/api/notifications/stream`) and email (publish, fail, YouTube published/failed, comment replied).
 
 ### 🎨 Appearance (10 app-wide themes)
 - **Selectable dashboard theme** — **Settings → Appearance** offers **10 brand-neutral palettes** — Crimson (default), Amethyst, Sapphire, Emerald, Sunset, Rosé, Cyber Teal, Gold, Indigo Night, Slate Mono. Themes are applied entirely through **CSS variables** (`lib/themes.ts` + `[data-theme="…"]` token blocks in `app/globals.css`, wired through Tailwind), swapped instantly by **next-themes** (`attribute="data-theme"`) and **persisted per device** — no rebuild, no code edit. A live accent preview shows each palette before you pick it.
+
+### 📲 Installable PWA
+- **Install the dashboard as an app** — the dashboard ships as an installable **Progressive Web App** (a brand-driven `app/manifest.ts` served at `/manifest.webmanifest` + a `public/sw.js` service worker), so it can be added to a desktop/home screen and launched **standalone** (own window, no browser chrome). The manifest **name / short name / icons** are brand-driven (from `NEXT_PUBLIC_APP_NAME` / `BRAND_NAME`) and niche-neutral, and the **"Powered by <app name>"** footer (`components/dashboard/Footer.tsx`) carries the same brand-driven identity.
 
 ---
 
@@ -228,6 +231,7 @@ YouTubePilot controls **multiple YouTube "brand" channels**. A *brand* = one You
 | Email | **Resend** / Nodemailer |
 | Deployment | **Railway** (Nixpacks) or **Docker** (Compose) |
 | Automation engine | In-process catch-up loop (`lib/catchup.ts`, per-brand) + daily timer |
+| PWA | Installable app — brand-driven `app/manifest.ts` (`/manifest.webmanifest`) + `public/sw.js` service worker (standalone display) |
 
 ---
 
@@ -270,6 +274,8 @@ Both `Post` and `ScheduledPost` carry a `platform` column (default `"youtube"`).
 - **Single-run catch-up** — a module-level in-flight guard makes `runCatchup()` **non-re-entrant**: if a cycle runs longer than the 5-min interval, the next tick early-returns instead of overlapping it, so publishing and story creation can't double-fire.
 - **Render lock (OOM guard)** — a process-wide **single-flight queue wraps the ENTIRE memory-heavy Short build** (card render + music + ffmpeg), so only one render is ever in memory at a time, even across concurrent brands/cycles. Every remote media fetch inside the lock carries a **60 s `AbortSignal` timeout** so a hung media URL can't deadlock the whole publish queue.
 - **ffmpeg safety** — a 120s watchdog SIGKILLs wedged renders; the render lock above ensures only one pipeline runs at a time.
+- **Black-frame render guard** — before stitching, every card frame is variance-checked (`isBlankFrame`, `lib/videoGenerator.ts`); if a transient Satori→Sharp rasterization glitch made **every** frame blank/all-black, the render **aborts (returns `null`)** rather than shipping a dead black Short — the publish path treats that as a failure and **retries** with a proper render on the next tick.
+- **Generation-failure alert email** — when a whole generation cycle produces **no Short** because every provider in the AI chain failed (typically a 429 / daily token cap), `notifyGenerationFailed` (`lib/notifier.ts`) sends an alert email so a silently unproductive day is visible; the scheduler keeps retrying.
 - **JSON-resilient AI** — content-JSON generation tries the selected provider then **falls through to the other on empty output or quota exhaustion** (429 / `limit:0`), so Shorts never silently degrade to canned filler when a provider's free quota runs out.
 - **Passed slots publish today** — when the auto-generator runs and a Short's slot time has **already passed for today**, it's scheduled for **now (today)** rather than pushed to tomorrow — fixing over-generation and the "N Shorts at one time" same-time collision.
 - **AI fallback chains** everywhere; graceful degradation (silent Shorts, default mood, branded fallback replies, and the silent music-only fallback when voiceover TTS fails).

@@ -30,7 +30,7 @@ const BODY_TXT = "rgba(255,255,255,0.55)";
 
 // -- Active brand identity  -  set at the start of each render call --------------
 let HANDLE       = "@yourhandle";   // "@handle" watermark
-let EYEBROW      = "INSIGHT";        // neutral slide eyebrow (was "CARDIOLOGY INSIGHT")
+let EYEBROW      = "INSIGHT";        // neutral slide eyebrow
 let COVER_TITLE_FALLBACK = "Insights";
 
 // -- Font cache ---------------------------------------------------------------
