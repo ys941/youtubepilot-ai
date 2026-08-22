@@ -14,6 +14,11 @@
 </p>
 
 <p>
+  <a href="COPYRIGHT.md"><img alt="Copyright and attribution" src="https://img.shields.io/badge/%E2%AD%90%20read%20first-Copyright%20%26%20attribution-7C3AED?style=for-the-badge" /></a>
+  <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/licence-MIT-2ea44f?style=for-the-badge" /></a>
+</p>
+
+<p>
   <a href="#-deployment"><img alt="Deploy on Railway" src="https://img.shields.io/badge/Deploy%20on-Railway-0B0D0E?style=for-the-badge&logo=railway&logoColor=white" /></a>
   <a href="#-deployment"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" /></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-2ea44f?style=for-the-badge" /></a>
