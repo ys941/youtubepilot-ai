@@ -130,9 +130,9 @@ In practice that means two things:
 - The server will not boot until you set `ATTRIBUTION_ACK="https://github.com/ys941"`
   in your environment. Nothing is transmitted; the value is compared locally.
 
-The check lives in [`lib/attribution.ts`](lib/attribution.ts) and is, obviously, easy
-to delete. It is a speed bump and a request, not DRM. Please just leave the credit in —
-it costs you nothing and it is the only thing asked in return.
+This is **clause 2 of the [licence](LICENSE)**, so it applies whether or not the check
+is present — deleting the check in [`lib/attribution.ts`](lib/attribution.ts) does not
+remove the obligation. A purely private deployment nobody else uses is exempt.
 
 ---
 
@@ -175,7 +175,8 @@ publicly. You'll be credited unless you'd rather not be.
 
 ## 📜 Licence
 
-Contributions are made under the [MIT Licence](LICENSE), the same as the project.
+Contributions are made under the [MIT Licence with Attribution Requirement](LICENSE),
+the same as the project.
 
 See [COPYRIGHT.md](COPYRIGHT.md) for exactly what you may and may not do with this code —
 the short version is "almost anything, just keep the credit".
