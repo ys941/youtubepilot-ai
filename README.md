@@ -16,7 +16,7 @@
 <p>
   <a href="#-deployment"><img alt="Deploy on Railway" src="https://img.shields.io/badge/Deploy%20on-Railway-0B0D0E?style=for-the-badge&logo=railway&logoColor=white" /></a>
   <a href="#-deployment"><img alt="Docker ready" src="https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" /></a>
-  <img alt="License" src="https://img.shields.io/badge/license-Proprietary-lightgrey?style=for-the-badge" />
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-2ea44f?style=for-the-badge" /></a>
 </p>
 
 <a href="https://railway.com/new"><img src="https://railway.com/button.svg" alt="Deploy on Railway" height="44" /></a>
@@ -620,4 +620,6 @@ This is the **YouTube-only** edition — all Instagram/Meta functionality has be
 
 ## 📄 License
 
-Provided for use by the licensed operator. Configure your own brand in **Settings → Brand** and supply your own API keys. All third-party API usage (Groq, Google/YouTube, Cloudinary, Jamendo, Resend) is subject to those providers' terms.
+Released under the **[MIT Licence](LICENSE)** — use it, fork it, sell what you build with it.
+
+Configure your own brand in **Settings → Brand** and supply your own API keys. **No keys are bundled.** All third-party API usage (Groq, Google/YouTube, Cloudinary, Jamendo, Resend) is subject to those providers' own terms, and you are responsible for complying with the platform policies of any channel you automate.
