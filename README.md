@@ -619,6 +619,18 @@ This is the **YouTube-only** edition — all Instagram/Meta functionality has be
 ---
 
 ## 📄 License
+### ⭐ One condition: attribution
+
+Free to use, fork, self-host and build on. The one condition is that credit to the
+original author stays visible:
+
+- the dashboard footer links to **[@ys941](https://github.com/ys941)** (the app name
+  above it stays fully white-label and follows your Brand settings), and
+- the server will not start until you set `ATTRIBUTION_ACK="https://github.com/ys941"`
+  in your environment — nothing is transmitted, the value is compared locally.
+
+See [`lib/attribution.ts`](lib/attribution.ts).
+
 
 Released under the **[MIT Licence](LICENSE)** — use it, fork it, sell what you build with it.
 

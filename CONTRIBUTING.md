@@ -40,13 +40,14 @@ npm install
 cp .env.example .env.local
 ```
 
-Only **three** variables are needed to boot the dashboard:
+Only **four** variables are needed to boot the dashboard:
 
 | Variable | What it's for |
 |---|---|
 | `DATABASE_URL` | Your Postgres connection string |
 | `APP_ACCESS_KEY` | The key you'll type on the login screen — pick anything |
 | `SESSION_SECRET` | A long random string; `openssl rand -base64 32` works |
+| `ATTRIBUTION_ACK` | Set to `https://github.com/ys941` — the app will not start without it ([why](#-attribution)) |
 
 ```bash
 npm run db:push     # create the tables
@@ -115,6 +116,26 @@ completely fine.
 
 ---
 
+## ⭐ Attribution
+
+This project is free to use, fork, self-host and build a business on. There is one
+condition, and it is deliberately small:
+
+**Credit to the original author stays visible.**
+
+In practice that means two things:
+
+- The dashboard footer links to [@ys941](https://github.com/ys941). The app name above
+  it is fully white-label and follows your Brand settings — the author credit is not.
+- The server will not boot until you set `ATTRIBUTION_ACK="https://github.com/ys941"`
+  in your environment. Nothing is transmitted; the value is compared locally.
+
+The check lives in [`lib/attribution.ts`](lib/attribution.ts) and is, obviously, easy
+to delete. It is a speed bump and a request, not DRM. Please just leave the credit in —
+it costs you nothing and it is the only thing asked in return.
+
+---
+
 ## 🎨 Code style
 
 There's no linter gate and no formatting police. Match the surrounding code and you'll
@@ -155,6 +176,9 @@ publicly. You'll be credited unless you'd rather not be.
 ## 📜 Licence
 
 Contributions are made under the [MIT Licence](LICENSE), the same as the project.
+
+See [COPYRIGHT.md](COPYRIGHT.md) for exactly what you may and may not do with this code —
+the short version is "almost anything, just keep the credit".
 
 ---
 
