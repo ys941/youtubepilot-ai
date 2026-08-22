@@ -134,7 +134,7 @@ In practice that means two things:
 
 This is **clause 2 of the [licence](LICENSE)**, so it applies whether or not the check
 is present — deleting the check in [`lib/attribution.ts`](lib/attribution.ts) does not
-remove the obligation. A purely private deployment nobody else uses is exempt.
+remove the obligation.
 
 ---
 
