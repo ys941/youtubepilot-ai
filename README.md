@@ -15,7 +15,7 @@
 
 <p>
   <a href="COPYRIGHT.md"><img alt="Copyright and attribution" src="https://img.shields.io/badge/%E2%AD%90%20read%20first-Copyright%20%26%20attribution-7C3AED?style=for-the-badge" /></a>
-  <a href="LICENSE"><img alt="MIT with attribution" src="https://img.shields.io/badge/licence-MIT%20%2B%20attribution-2ea44f?style=for-the-badge" /></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-2ea44f?style=for-the-badge" /></a>
 </p>
 
 <p>
@@ -637,6 +637,6 @@ original author stays visible:
 See [`lib/attribution.ts`](lib/attribution.ts).
 
 
-Released under the **[MIT Licence with Attribution Requirement](LICENSE)** — use it, fork it, rebrand it, sell what you build with it. The one condition is that visible credit to the author stays.
+Released under the **[MIT Licence](LICENSE)** — use it, fork it, rebrand it, sell what you build with it. The one condition is that visible credit to the author stays.
 
 Configure your own brand in **Settings → Brand** and supply your own API keys. **No keys are bundled.** All third-party API usage (Groq, Google/YouTube, Cloudinary, Jamendo, Resend) is subject to those providers' own terms, and you are responsible for complying with the platform policies of any channel you automate.
