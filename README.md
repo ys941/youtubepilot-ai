@@ -623,6 +623,13 @@ This is the **YouTube-only** edition — all Instagram/Meta functionality has be
 
 ---
 
+## ⭐ Star the repo
+
+If YouTubePilot is useful to you, star it. There is no marketing behind this
+project — a star is genuinely how the next person ends up finding it.
+
+---
+
 ## 📄 License
 ### ⭐ One condition: attribution
 
