@@ -44,7 +44,8 @@ docker compose up -d --build  # app + PostgreSQL
 ```bash
 # 60-second start (local Node)
 npm install
-cp .env.example .env.local
+cp .env.example .env          # use .env — the Prisma CLI does not read .env.local
+docker compose up -d postgres # or point DATABASE_URL at your own database
 npm run db:generate && npm run db:push
 npm run dev                   # http://localhost:3000
 ```
@@ -362,11 +363,23 @@ Other tabs: **Accounts** (add/edit/enable/delete brands), **Appearance** (pick o
 ### Local development
 ```bash
 npm install
-cp .env.example .env.local        # fill in the variables below
+cp .env.example .env               # fill in the variables below
 npm run db:generate && npm run db:push
 npm run dev                        # http://localhost:3000
 ```
 Then log in with your `APP_ACCESS_KEY` and open **Settings → Brand** (or **Settings → AI Setup** to have the AI configure the channel for you).
+
+You do not have to invent a login key. On the first run, `.env` is created for you from
+`.env.example` with a working `DATABASE_URL`, a random `SESSION_SECRET`, and a random
+`APP_ACCESS_KEY` that is **printed in the terminal** — change it in `.env` whenever you
+like. The AI features stay switched off until you add your own API keys.
+
+> **Use `.env`, not `.env.local`.** The Prisma CLI reads `.env` only — it never reads
+> `.env.local`, which Next.js prefers at runtime. Keeping your config in a single `.env`
+> avoids `db:push` writing the schema to one database while the running app reads another.
+> If you do keep a `.env.local` for overrides, `DATABASE_URL` must be identical in both.
+> `npm run dev` and `npm run db:push` both run `npm run check-env` first, which explains
+> anything still missing instead of failing later with an opaque Prisma or login error.
 
 > **Windows one-click:** run **`start-all.bat`** — it checks Docker, brings up the Postgres container, generates the Prisma client, syncs the schema (no destructive `--accept-data-loss`), starts the dev server, and opens the dashboard.
 
@@ -455,7 +468,7 @@ YouTubePilot authenticates with a long-lived **refresh token** (no interactive l
 
 ## ✅ First-Run Checklist
 
-1. [ ] `cp .env.example .env` (Docker) or `.env.local` (Node) and fill **required** keys.
+1. [ ] `cp .env.example .env` — same file for Docker and Node — and fill **required** keys.
 2. [ ] Bring up a database (`docker compose up -d postgres` or your own) and run `npm run db:push`.
 3. [ ] Start the app (`docker compose up -d --build` or `npm run dev`).
 4. [ ] Open `http://localhost:3000`, log in with `APP_ACCESS_KEY`.
