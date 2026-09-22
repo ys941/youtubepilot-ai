@@ -499,7 +499,16 @@ function ProTipCard({ hook, content }: { hook: string; content: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function CaseStudyCard({ hook, content }: { hook: string; content: string }) {
   // Parse sections from the structured case study content
-  const sectionLabels = ["PRESENTATION", "KEY FINDINGS", "DIAGNOSIS", "MANAGEMENT", "OUTCOME", "LEARNING POINT"];
+  // Display label → the headings that start that section. The first of each is
+  // what the prompt asks for; the rest are what older posts used.
+  const SECTION_HEADINGS: Array<[string, string[]]> = [
+    ["THE SETUP",    ["THE SETUP", "SETUP", "PRESENTATION"]],
+    ["KEY DETAILS",  ["KEY DETAILS", "WHAT HAPPENED", "KEY FINDINGS", "DIAGNOSIS"]],
+    ["THE APPROACH", ["THE APPROACH", "APPROACH", "MANAGEMENT"]],
+    ["OUTCOME",      ["OUTCOME"]],
+    ["TAKEAWAY",     ["TAKEAWAY", "LEARNING POINT"]],
+  ];
+  const sectionLabels = SECTION_HEADINGS.flatMap(([, headings]) => headings);
   const CTA_RE = /^(save this|share this|what would you|drop your|comment below|let me know|tag a)/i;
 
   // Extract sections by label, or fall back to line-by-line
@@ -508,8 +517,15 @@ function CaseStudyCard({ hook, content }: { hook: string; content: string }) {
   for (const raw of content.split("\n")) {
     const line = raw.replace(/\*\*/g, "").trim();
     if (!line) continue;
-    const headerMatch = sectionLabels.find((s) => new RegExp(`^${s}\\s*[:\\-]?`, "i").test(line));
-    if (headerMatch) { currentSection = headerMatch; continue; }
+    const headerMatch = SECTION_HEADINGS.find(([, headings]) =>
+      headings.some((s) => new RegExp(`^${s}\\s*[:\\-]?`, "i").test(line)));
+    if (headerMatch) {
+      currentSection = headerMatch[0];
+      // "THE SETUP: text" — keep the text that follows the heading on the same line.
+      const rest = line.replace(new RegExp(`^(?:${headerMatch[1].join("|")})\\s*[:\\-]?\\s*`, "i"), "");
+      if (rest) sectionMap[currentSection] = (sectionMap[currentSection] ? sectionMap[currentSection] + " " : "") + rest;
+      continue;
+    }
     if (currentSection) sectionMap[currentSection] = (sectionMap[currentSection] ? sectionMap[currentSection] + " " : "") + line;
   }
 

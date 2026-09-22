@@ -188,7 +188,7 @@ function educational(hook: string, content: string, cta: string): string {
     "",
     DIVIDER,
     "",
-    clean(cta) || `${E.floppy} Save this post  -  you'll thank yourself later on your next shift!`,
+    clean(cta) || `${E.floppy} Save this post  -  you'll thank yourself later!`,
     "",
     `${E.pointDown} Drop your questions below  -  I reply to every comment! ${E.heart}`,
     "",
