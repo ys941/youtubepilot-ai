@@ -25,7 +25,10 @@
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-2ea44f?style=for-the-badge" /></a>
 </p>
 
+<a href="https://ys941.github.io/youtubepilot-ai/"><img alt="Live demo" src="https://img.shields.io/badge/%E2%96%B6%20Try%20it-Live%20demo-FF0000?style=for-the-badge" height="44" /></a>
 <a href="https://railway.com/new"><img src="https://railway.com/button.svg" alt="Deploy on Railway" height="44" /></a>
+
+<b><a href="https://ys941.github.io/youtubepilot-ai/">▶ Try the live demo</a></b> — the real dashboard running a fictional cooking channel in your browser. Nothing is uploaded and no AI is called.
 
 <sub>Invent ideas → write the script → render multi-slide video cards → stitch a vertical Short with music → write title/tags → schedule & upload → seed comment → auto-reply to viewers — <b>all unattended.</b></sub>
 

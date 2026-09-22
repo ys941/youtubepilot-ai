@@ -55,3 +55,6 @@ folder-icon.ico
 # Runtime media the app writes, and local card previews (scripts/preview-cards.mjs)
 /public/uploads/
 /public/previews/
+# Public demo build (npm run build:demo)
+/public/demo/
+/out/
