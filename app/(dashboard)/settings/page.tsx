@@ -851,10 +851,10 @@ const POST_TYPES_META = [
   { id: "QUIZ",             label: "Quiz",              emoji: "❓" },
   { id: "CAROUSEL",         label: "Carousel",          emoji: "🖼️" },
   { id: "MYTH_FACT",        label: "Myth vs Fact",      emoji: "⚖️" },
-  { id: "CLINICAL_PEARL",   label: "Pro Tip",           emoji: "💎" },
+  { id: "PRO_TIP",   label: "Pro Tip",           emoji: "💎" },
   { id: "CASE_STUDY",       label: "Story / Example",   emoji: "🔬" },
-  { id: "ANGIOGRAPHY_QUIZ", label: "Image Quiz",        emoji: "🖼️" },
-  { id: "ECG_QUIZ",         label: "Knowledge Quiz",    emoji: "📈" },
+  { id: "IMAGE_QUIZ", label: "Image Quiz",        emoji: "🖼️" },
+  { id: "KNOWLEDGE_QUIZ",         label: "Knowledge Quiz",    emoji: "📈" },
   { id: "PREVENTIVE",       label: "How-To / Tips",     emoji: "🛡️" },
   { id: "CTA",              label: "CTA",               emoji: "📣" },
 ];
@@ -1110,10 +1110,10 @@ const ALL_POST_TYPES = [
   { id: "QUIZ",             label: "Quiz",           emoji: "❓" },
   { id: "CAROUSEL",         label: "Carousel",       emoji: "🖼️" },
   { id: "MYTH_FACT",        label: "Myth vs Fact",   emoji: "⚖️" },
-  { id: "CLINICAL_PEARL",   label: "Pro Tip",        emoji: "💎" },
+  { id: "PRO_TIP",   label: "Pro Tip",        emoji: "💎" },
   { id: "CASE_STUDY",       label: "Story / Example",emoji: "🔬" },
-  { id: "ANGIOGRAPHY_QUIZ", label: "Image Quiz",     emoji: "🖼️" },
-  { id: "ECG_QUIZ",         label: "Knowledge Quiz", emoji: "📈" },
+  { id: "IMAGE_QUIZ", label: "Image Quiz",     emoji: "🖼️" },
+  { id: "KNOWLEDGE_QUIZ",         label: "Knowledge Quiz", emoji: "📈" },
   { id: "PREVENTIVE",       label: "How-To / Tips",  emoji: "🛡️" },
   { id: "CTA",              label: "CTA",            emoji: "📣" },
 ];
@@ -1682,7 +1682,7 @@ function YouTubeTab() {
   const [descriptionSuffix, setDescriptionSuffix] = useState("");
   const [replyToComments,   setReplyToComments]   = useState(true);
   const [topics,            setTopics]            = useState<string[]>([]);
-  const [postTypes,         setPostTypes]         = useState<string[]>(["EDUCATIONAL", "CLINICAL_PEARL", "PREVENTIVE"]);
+  const [postTypes,         setPostTypes]         = useState<string[]>(["EDUCATIONAL", "PRO_TIP", "PREVENTIVE"]);
   const [customPromptExtra, setCustomPromptExtra] = useState("");
   const [postTimes,         setPostTimes]         = useState<string[]>(["19:00"]);
   const [scheduleDays,      setScheduleDays]      = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
@@ -1710,7 +1710,7 @@ function YouTubeTab() {
           setDescriptionSuffix(cfg.descriptionSuffix ?? "");
           setReplyToComments(cfg.replyToComments ?? true);
           setTopics(cfg.topics ?? []);
-          setPostTypes(cfg.postTypes ?? ["EDUCATIONAL", "CLINICAL_PEARL", "PREVENTIVE"]);
+          setPostTypes(cfg.postTypes ?? ["EDUCATIONAL", "PRO_TIP", "PREVENTIVE"]);
           setCustomPromptExtra(cfg.customPromptExtra ?? "");
           setPostTimes(cfg.postTimes ?? ["19:00"]);
           setScheduleDays(cfg.scheduleDays ?? [0, 1, 2, 3, 4, 5, 6]);
@@ -2981,10 +2981,10 @@ const CONTENT_TYPE_SLOTS: { id: string; defaultLabel: string }[] = [
   { id: "QUIZ",             defaultLabel: "Quiz" },
   { id: "CAROUSEL",         defaultLabel: "Carousel" },
   { id: "MYTH_FACT",        defaultLabel: "Myth vs Fact" },
-  { id: "CLINICAL_PEARL",   defaultLabel: "Pro Tip" },
+  { id: "PRO_TIP",   defaultLabel: "Pro Tip" },
   { id: "CASE_STUDY",       defaultLabel: "Story / Example" },
-  { id: "ANGIOGRAPHY_QUIZ", defaultLabel: "Image Quiz" },
-  { id: "ECG_QUIZ",         defaultLabel: "Knowledge Quiz" },
+  { id: "IMAGE_QUIZ", defaultLabel: "Image Quiz" },
+  { id: "KNOWLEDGE_QUIZ",         defaultLabel: "Knowledge Quiz" },
   { id: "PREVENTIVE",       defaultLabel: "How-To / Tips" },
   { id: "CTA",              defaultLabel: "Call to Action" },
   { id: "STORY",            defaultLabel: "Story" },

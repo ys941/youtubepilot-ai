@@ -1028,15 +1028,15 @@ function cardSpecFor(brand: BrandConfig): Record<string, string> {
   return {
   EDUCATIONAL:
     "7 numbered points (1.â€“7.), each on its own line. Each point is a COMPLETE, self-contained factual statement: a SPECIFIC number/stat/detail/percentage, PLUS why it matters (what it means AND why it's significant) â€” write the FULL, detailed informative line with no length limit (the card auto-fits; do NOT abbreviate or truncate). No vague steps.",
-  CLINICAL_PEARL:
+  PRO_TIP:
     "ONE high-value key insight as a bold 1-2 line takeaway, then 5 numbered supporting points (1.â€“5.). Each supporting point is a COMPLETE, self-contained factual statement with a specific number/detail/criterion PLUS why it matters â€” write the FULL, detailed informative line with no length limit (the card auto-fits; do NOT abbreviate or truncate).",
   PREVENTIVE:
     "7 numbered points (1.â€“7.), each on its own line. Each is a COMPLETE, self-contained actionable statement with a real number, target value, or concrete detail PLUS brief context explaining the action AND its benefit â€” write the FULL, detailed informative line with no length limit (the card auto-fits; do NOT abbreviate or truncate).",
   QUIZ:
     "Format the card content EXACTLY with these labelled sections (each on its own line):\nSCENARIO: <the relevant setup/context>\nQUESTION: <the question>\nA) <option>\nB) <option>\nC) <option>\nD) <option>\nDo NOT reveal or mark the correct answer anywhere. No asterisks.",
-  ECG_QUIZ:
+  KNOWLEDGE_QUIZ:
     "Format the card content EXACTLY with these labelled sections (each on its own line):\nSCENARIO: <the relevant setup/context>\nKEY DETAILS:\n- <detail 1>\n- <detail 2>\n- <detail 3>\nQUESTION: <the question>\nA) <option>\nB) <option>\nC) <option>\nD) <option>\nDo NOT reveal or mark the correct answer anywhere. No asterisks.",
-  ANGIOGRAPHY_QUIZ:
+  IMAGE_QUIZ:
     "Format the card content EXACTLY with these labelled sections (each on its own line):\nSCENARIO: <the relevant setup/context>\nKEY DETAILS:\n- <detail 1>\n- <detail 2 if relevant>\nQUESTION: <the specific decision>\nA) <option>\nB) <option>\nC) <option>\nD) <option>\nDo NOT reveal or mark the correct answer anywhere. No asterisks.",
   MYTH_FACT:
     "Line 1: 'MYTH: <common misconception>'. Line 2: 'FACT: <the evidence-based truth>'. Then 4 numbered supporting facts (1.â€“4.), each a full, detailed informative line with real data AND why it matters â€” no length limit (the card auto-fits).",
@@ -1050,7 +1050,7 @@ function cardSpecFor(brand: BrandConfig): Record<string, string> {
 }
 
 // Quiz-family types keep their question + A/B/C/D options on the card.
-const QUIZ_TYPES = ["QUIZ", "ECG_QUIZ", "ANGIOGRAPHY_QUIZ"];
+const QUIZ_TYPES = ["QUIZ", "KNOWLEDGE_QUIZ", "IMAGE_QUIZ"];
 
 // Is this line quiz/option/answer/CTA noise that must NOT appear on a
 // non-quiz (educational/preventive/pearl/carousel) card or its caption?
@@ -1298,8 +1298,8 @@ export async function runAutoGenerateYouTube(ctxArg?: BrandContext): Promise<Gen
     const YT_TYPES = (Array.isArray(yt.postTypes) && yt.postTypes.length)
       ? yt.postTypes
       : (ytDefaultType
-          ? [ytDefaultType, "EDUCATIONAL", "CLINICAL_PEARL", "PREVENTIVE"]
-          : ["EDUCATIONAL", "CLINICAL_PEARL", "PREVENTIVE"]);
+          ? [ytDefaultType, "EDUCATIONAL", "PRO_TIP", "PREVENTIVE"]
+          : ["EDUCATIONAL", "PRO_TIP", "PREVENTIVE"]);
     const dayNumber = Math.floor(Date.now() / 86_400_000);
 
     const customExtra = (yt.customPromptExtra ?? "").trim();

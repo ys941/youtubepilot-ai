@@ -51,3 +51,7 @@ tsconfig.tsbuildinfo
 # Windows folder customisation
 desktop.ini
 folder-icon.ico
+
+# Runtime media the app writes, and local card previews (scripts/preview-cards.mjs)
+/public/uploads/
+/public/previews/

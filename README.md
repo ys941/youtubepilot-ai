@@ -117,17 +117,17 @@ YouTubePilot ships **niche-neutral** and is re-skinnable for any brand **entirel
 
 ## 🧩 Content Types
 
-Content slots have **stable internal IDs** (kept for data/schema compatibility — some carry legacy names) and **neutral, renameable display labels**. The generator and auto-poster pick from the **enabled** types. Rename or toggle any of them in **Settings → Content Types**.
+Content slots have **stable internal IDs** and **neutral, renameable display labels**. (Installs from before the IDs were renamed keep working — their old IDs are read as the new ones.) The generator and auto-poster pick from the **enabled** types. Rename or toggle any of them in **Settings → Content Types**.
 
 | Internal ID | Default label | What it produces | Enabled by default |
 |-------------|---------------|------------------|:---:|
 | `EDUCATIONAL` | **Educational** | Teach one concept clearly with real value | ✅ |
 | `MYTH_FACT` | **Myth vs Fact** | Debunk a common misconception in your niche | ✅ |
-| `CLINICAL_PEARL` | **Pro Tip** | One high-value, save-worthy tip or insight | ✅ |
+| `PRO_TIP` | **Pro Tip** | One high-value, save-worthy tip or insight | ✅ |
 | `CASE_STUDY` | **Story / Example** | A real-world example or story with a takeaway | ✅ |
 | `PREVENTIVE` | **How-To / Tips** | Actionable steps or a checklist to apply | ✅ |
-| `ANGIOGRAPHY_QUIZ` | **Image Quiz** | An image-based "can you spot it / what is this?" challenge | ⬜ |
-| `ECG_QUIZ` | **Knowledge Quiz** | A deeper interpretation/knowledge challenge with options | ⬜ |
+| `IMAGE_QUIZ` | **Image Quiz** | An image-based "can you spot it / what is this?" challenge | ⬜ |
+| `KNOWLEDGE_QUIZ` | **Knowledge Quiz** | A deeper interpretation/knowledge challenge with options | ⬜ |
 | `CAROUSEL` | **Carousel** | A multi-slide deck (renders its own authored slides) | ✅ |
 
 > Quiz types are rendered as setup/question/option slides and **never reveal the answer in the Short** — the answer is invited in the comments to drive engagement.

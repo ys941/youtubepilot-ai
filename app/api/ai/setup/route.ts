@@ -40,7 +40,7 @@ const CONTENT_TYPE_SET = new Set<string>(CONTENT_TYPE_IDS);
  */
 const YT_POST_TYPES = CONTENT_TYPE_IDS.filter((id) => id !== "STORY");
 const YT_POST_TYPE_SET = new Set<string>(YT_POST_TYPES);
-const DEFAULT_YT_POST_TYPES = ["EDUCATIONAL", "CLINICAL_PEARL", "PREVENTIVE"];
+const DEFAULT_YT_POST_TYPES = ["EDUCATIONAL", "PRO_TIP", "PREVENTIVE"];
 
 const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 

@@ -70,7 +70,7 @@ export function buildYouTubeTags(post: YtPostInput, brand?: BrandConfig): string
     .replace(/\s+/g, " ")
     .trim();
 
-  // A keyword derived from the post type (e.g. ECG_QUIZ → "ecg quiz").
+  // A keyword derived from the post type (e.g. KNOWLEDGE_QUIZ → "knowledge quiz").
   const typeKeyword = (post.type ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
@@ -467,7 +467,7 @@ function stripQuizAnswer(content: string): string {
  * `{ slide, headline, body }` shape that `slideImageGenerator.generateAllSlideBuffers`
  * renders with the same readable slide renderer the CAROUSEL posts use.
  *
- *   - QUIZ / ECG_QUIZ / ANGIOGRAPHY_QUIZ: the case goes on a slide, the question on
+ *   - QUIZ / KNOWLEDGE_QUIZ / IMAGE_QUIZ: the case goes on a slide, the question on
  *     a slide, and the A/B/C/D options on a slide (split across two if long). The
  *     answer is NEVER revealed (stripQuizAnswer + we never emit an answer slide).
  *   - All other types: each content point/line becomes its own slide (~5–7 aimed),
@@ -623,7 +623,7 @@ export async function renderPostCardBuffers(post: YtPostInput, theme: Theme): Pr
       headline: post.title || lines[0] || (brand.niche ?? "").trim() || "Did You Know?",
       body:     lines[1] || (post.content ?? ""),
       label:    nicheLabel,
-      type:     "health_awareness",
+      type:     "checklist",
       tips:     lines.filter((l) => l.startsWith("TIP:")).map((l) => l.slice(4).trim()).filter(Boolean).slice(0, 6),
       tagline:  (lines.find((l) => l.startsWith("TAGLINE:")) ?? "").replace(/^TAGLINE:/, "").trim(),
       cta:      "Save & share ❤️",

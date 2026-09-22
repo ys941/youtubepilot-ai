@@ -221,7 +221,7 @@ export async function generateJSONResilient(
 const VISION_TYPE_INSTRUCTIONS: Record<string, string> = {
   QUIZ:           "Write a quiz caption — pose a question about what you see and prompt 'Drop your answer below!' (80-120 words, no answer).",
   EDUCATIONAL:    "Write an educational caption with a bold hook, 3-4 bullet insights from this image, and a save/share CTA (150-220 words).",
-  CLINICAL_PEARL: "Write a pro-tip caption — one high-value insight from this image, then context (100-150 words).",
+  PRO_TIP: "Write a pro-tip caption — one high-value insight from this image, then context (100-150 words).",
   CASE_STUDY:     "Write a story/example caption — a brief scenario based on this image, key takeaways, an engaging CTA (150-200 words).",
   CAROUSEL:       "Write a carousel caption with a powerful hook about this image that makes viewers keep going. End with 'Save this for later' (100-150 words).",
   PREVENTIVE:     "Write a how-to/tips caption using insights from this image, a shocking statistic hook, actionable tips, share CTA (150-200 words).",
